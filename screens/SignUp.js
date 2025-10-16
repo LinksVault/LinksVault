@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, Alert, Keyboard, Modal, Dimensions, ActivityIndicator } from 'react-native';
 import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '../FireBase/Config';
+import { auth, db } from '../services/firebase/Config';
 import { doc, setDoc } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +28,7 @@ export default function SignUp({ navigation, route }) {
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationInProgress, setVerificationInProgress] = useState(false);
   
   // Refs for the verification code inputs
   const codeInputRefs = useRef([]);
@@ -55,38 +56,37 @@ export default function SignUp({ navigation, route }) {
 
   // Debug modal state changes
   React.useEffect(() => {
-    console.log('Modal state changed to:', showVerificationModal);
+    console.log('🔔 Modal state changed to:', showVerificationModal);
+    if (showVerificationModal) {
+      console.log('✅ Modal should be VISIBLE now');
+      console.log('📧 Email for verification:', email);
+    } else {
+      console.log('❌ Modal should be HIDDEN now');
+      // Print stack trace to see what's hiding the modal
+      console.trace('🚨 MODAL WAS HIDDEN - Stack trace:');
+    }
   }, [showVerificationModal]);
 
   // Send verification email with code
   const sendVerificationEmailWithCode = async (email, userName) => {
     try {
-      setIsLoading(true);
+      console.log('🚀 Starting email verification process...');
+      console.log('📧 Email:', email);
+      console.log('👤 User Name:', userName);
+      
       const result = await sendVerificationEmail(email, null, userName);
       
+      console.log('📬 Email service result:', result);
+      
       if (result.success) {
-        // Show verification modal and clear any previous errors
-        console.log('Email sent successfully, showing modal...');
-        setShowVerificationModal(true);
-        setError('');
-        console.log('Modal state set to true');
-        console.log('User should now be signed out, modal should be visible');
+        console.log('✅ Email sent successfully');
       } else {
-        Alert.alert(
-          'Email Service Unavailable',
-          'We couldn\'t send a verification email right now. Please try again later.',
-          [{ text: 'OK' }]
-        );
+        console.error('❌ Email service failed:', result.message);
+        setError(`Email service error: ${result.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error sending verification email:', error);
-      Alert.alert(
-        'Email Service Error',
-        'We couldn\'t send a verification email right now. Please try again later.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setIsLoading(false);
+      console.error('💥 Error sending verification email:', error);
+      setError(`Email service exception: ${error.message}`);
     }
   };
 
@@ -122,15 +122,20 @@ export default function SignUp({ navigation, route }) {
               userId: user.uid,
               emailVerified: true,
               verificationSentAt: new Date().toISOString(),
-              verifiedAt: new Date().toISOString()
+              verifiedAt: new Date().toISOString(),
+              authProviders: ['password'],
+              primaryProvider: 'password'
             };
             
             await setDoc(doc(db, 'users', user.uid), userData);
             
             // Close modal and clear verification state
+            setVerificationInProgress(false);
             setShowVerificationModal(false);
             setVerificationCode(['', '', '', '', '', '']);
-            setIsVerificationInProgress(false);
+            if (setIsVerificationInProgress) {
+              setIsVerificationInProgress(false);
+            }
             
             // The App.js navigation logic will handle the navigation automatically
             // when isVerificationInProgress becomes false and user is authenticated
@@ -164,9 +169,18 @@ export default function SignUp({ navigation, route }) {
         return;
       }
 
+      // SHOW MODAL IMMEDIATELY - JUST LIKE THE TEST BUTTON!
+      console.log('🚀 SHOWING MODAL IMMEDIATELY!');
+      setVerificationInProgress(true);
+      setShowVerificationModal(true);
+      console.log('🎯 Modal state set to true, clearing error...');
+      setError('');
+
       // Validate email format first
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
+        console.log('❌ Email validation failed, hiding modal...');
+        setShowVerificationModal(false);
         setError('Please enter a valid email address');
         setIsLoading(false);
         return;
@@ -175,6 +189,8 @@ export default function SignUp({ navigation, route }) {
       // Check if email actually exists
       const isEmailValid = await validateEmailExists(email);
       if (!isEmailValid) {
+        console.log('❌ Email validation failed (doesn\'t exist), hiding modal...');
+        setShowVerificationModal(false);
         setError('Please enter a valid email address that actually exists');
         setIsLoading(false);
         return;
@@ -204,9 +220,19 @@ export default function SignUp({ navigation, route }) {
       }
       
       if (age < 13) {
+        console.log('❌ Age validation failed, hiding modal...');
+        setShowVerificationModal(false);
         setError('You must be at least 13 years old to use this app');
         setIsLoading(false);
         return;
+      }
+
+      // Set verification in progress flag BEFORE creating user to prevent navigation
+      if (setIsVerificationInProgress) {
+        setIsVerificationInProgress(true);
+        console.log('Verification in progress flag set to true - App should stay on SignUp screen');
+      } else {
+        console.log('⚠️ setIsVerificationInProgress is not available from route params');
       }
 
       // יצירת משתמש חדש ב-Firebase
@@ -214,16 +240,6 @@ export default function SignUp({ navigation, route }) {
       const user = userCredential.user;
       
       console.log('User registered successfully:', user.email);
-      
-      // Set verification in progress flag
-      setIsVerificationInProgress(true);
-      console.log('Verification in progress flag set to true - App should stay on SignUp screen');
-      
-      // Generate and send verification code
-      await sendVerificationEmailWithCode(email, fullName);
-      
-      // Clear loading state after email is sent
-      setIsLoading(false);
       
       // Update user profile with display name
       await updateProfile(user, {
@@ -242,14 +258,26 @@ export default function SignUp({ navigation, route }) {
         userId: user.uid,
         emailVerified: false,
         verificationSentAt: new Date().toISOString(),
-        verificationCode: null, // No longer storing code here
-        verificationCodeExpiresAt: null // No longer storing expiry here
+        verificationCode: null,
+        verificationCodeExpiresAt: null,
+        authProviders: ['password'],
+        primaryProvider: 'password'
       };
       
       await setDoc(doc(db, 'users', user.uid), userData);
-      console.log('User data saved to Firestore, modal should be visible now');
+      console.log('User data saved to Firestore');
+      
+      // Generate and send verification code
+      console.log('📤 About to send verification email...');
+      await sendVerificationEmailWithCode(email, fullName);
+      
+      // Clear loading state after email is sent
+      setIsLoading(false);
+      console.log('✅ Signup process completed, modal should be visible');
     } catch (error) {
       console.error('Signup error:', error);
+      console.log('❌ Signup failed, hiding modal...');
+      setShowVerificationModal(false);
       let errorMessage = 'Failed to create account. Please try again.';
       
       // טיפול בשגיאות ספציפיות
@@ -396,6 +424,14 @@ export default function SignUp({ navigation, route }) {
         resizeMode="cover"
       >
         <View style={styles.overlay}>
+          {/* Back Arrow Button */}
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.navigate('Welcome')}
+          >
+            <MaterialIcons name="arrow-back" size={28} color="white" />
+          </TouchableOpacity>
+
           {/* התאמת המסך למקלדת */}
           <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -771,6 +807,8 @@ export default function SignUp({ navigation, route }) {
                     Already have an account? <Text style={styles.loginLinkTextBold}>Log in!</Text>
                   </Text>
                 </TouchableOpacity>
+
+
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -782,8 +820,16 @@ export default function SignUp({ navigation, route }) {
         visible={showVerificationModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowVerificationModal(false)}
-        onShow={() => console.log('Modal is now visible')}
+        onRequestClose={() => {
+          console.log('🚫 Modal close requested - BLOCKING!');
+          if (!verificationInProgress) {
+            console.log('✅ Verification not in progress, allowing close');
+            setShowVerificationModal(false);
+          } else {
+            console.log('🚫 Verification in progress, blocking close');
+          }
+        }}
+        onShow={() => console.log('🎉 Modal is now visible on screen!')}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -882,16 +928,7 @@ export default function SignUp({ navigation, route }) {
               <Text style={styles.modalResendButtonText}>Resend Code</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
-              onPress={() => {
-                setShowVerificationModal(false);
-                setVerificationCode(['', '', '', '', '', '']);
-                setError('');
-              }}
-            >
-              <MaterialIcons name="close" size={24} color="#666" />
-            </TouchableOpacity>
+            {/* Close button removed - user must complete verification */}
           </View>
         </View>
       </Modal>
@@ -1389,5 +1426,22 @@ const styles = StyleSheet.create({
     top: 15,
     right: 15,
     padding: 5,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    zIndex: 1000,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 20,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });

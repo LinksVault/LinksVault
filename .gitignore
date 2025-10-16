@@ -30,7 +30,16 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
 
 # typescript
 *.tsbuildinfo
+
+# Node.js server directories (not needed for React Native)
+functions/
+scraper-server/
+email_verification/ # Contains server-side Cloud Functions

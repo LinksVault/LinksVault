@@ -2,6 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Image, Platform, I18nManager } from 'react-native';
+
+// Force LTR layout globally
+I18nManager.allowRTL(false);
+I18nManager.forceRTL(false);
 import SignUp from './screens/SignUp';
 import LogIn from './screens/LogIn';
 import Welcome from './screens/Welcome';
@@ -11,7 +16,8 @@ import CollectionFormat from './screens/CollectionFormat';
 import CollectionScreen from './screens/CollectionScreen';
 import ShareHandler from './screens/ShareHandler';
 import Profile from './screens/Profile';
-import { auth } from './FireBase/Config';
+import MyLinks from './screens/MyLinks';
+import { auth } from './services/firebase/Config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ThemeProvider } from './ThemeContext';
 import ShareIntentListener from './utils/ShareIntentListener';
@@ -27,17 +33,79 @@ export default function App() {
   const [initializing, setInitializing] = useState(true);
   const [sharedContent, setSharedContent] = useState(null);
   const [isVerificationInProgress, setIsVerificationInProgress] = useState(false);
-  const navigationRef = useRef();
+  const [isSwitchingAccounts, setIsSwitchingAccounts] = useState(false);
+  const navigationRef = useRef(null);
+
+  // Global image preloading for better performance (non-blocking)
+  useEffect(() => {
+    const preloadAppImages = async () => {
+      // Skip on web - Image.resolveAssetSource doesn't work there
+      if (Platform.OS === 'web') {
+        console.log('Skipping image preload on web platform');
+        return;
+      }
+      
+      console.log('Starting global image preload...');
+      try {
+        // Don't await - let it run in background
+        Promise.all([
+          Image.prefetch(Image.resolveAssetSource(require('./assets/YoutubeIcon.png')).uri),
+          Image.prefetch(Image.resolveAssetSource(require('./assets/InstagramIcon.png')).uri),
+          Image.prefetch(Image.resolveAssetSource(require('./assets/FacebookIcon.png')).uri),
+          Image.prefetch(Image.resolveAssetSource(require('./assets/TikTokIcon.png')).uri),
+          Image.prefetch(Image.resolveAssetSource(require('./assets/XIcon.png')).uri),
+          Image.prefetch(Image.resolveAssetSource(require('./assets/SnapchatIcon.png')).uri),
+        ]).then(() => {
+          console.log('Global image preload completed successfully');
+        }).catch((error) => {
+          console.warn('Global image preload failed:', error);
+        });
+      } catch (error) {
+        console.warn('Global image preload failed:', error);
+      }
+    };
+
+    // Preload images immediately but non-blocking
+    preloadAppImages();
+  }, []);
+
+  // Safe navigation helper function
+  const safeNavigate = (screenName, params = {}) => {
+    if (navigationRef.current && navigationRef.current.isReady()) {
+      try {
+        navigationRef.current.navigate(screenName, params);
+        return true;
+      } catch (error) {
+        console.error('Navigation error:', error);
+        return false;
+      }
+    } else {
+      console.warn('Navigation not ready, cannot navigate to:', screenName);
+      return false;
+    }
+  };
 
   // מעקב אחר מצב האימות של המשתמש
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (newUser) => {
+      console.log('🔄 Auth state changed:', newUser ? 'User logged in' : 'User logged out');
+      console.log('🔍 Current isVerificationInProgress:', isVerificationInProgress);
+      console.log('🔍 Navigation key will be:', user && !isVerificationInProgress ? 'authenticated' : 'unauthenticated');
+      
+      // Detect account switching
+      if (user && newUser && user.uid !== newUser.uid) {
+        console.log('Account switch detected');
+        setIsSwitchingAccounts(true);
+        // Reset switching state after a short delay
+        setTimeout(() => setIsSwitchingAccounts(false), 1000);
+      }
+      
+      setUser(newUser);
       if (initializing) setInitializing(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user, initializing, isVerificationInProgress]);
 
   // Handle share intents
   useEffect(() => {
@@ -48,9 +116,7 @@ export default function App() {
       setSharedContent(content);
       
       // Navigate to ShareHandler screen
-      if (navigationRef.current) {
-        navigationRef.current.navigate('ShareHandler', { sharedContent: content });
-      }
+      safeNavigate('ShareHandler', { sharedContent: content });
     });
 
     return () => {
@@ -66,13 +132,22 @@ export default function App() {
     }
   }, [user]);
 
-  // הצגת מסך ריק בזמן אתחול
-  if (initializing) return null;
+  // הצגת מסך ריק בזמן אתחול או החלפת חשבון
+  if (initializing || isSwitchingAccounts) return null;
 
   return (
     <ThemeProvider>
-      <NavigationContainer ref={navigationRef}>
-        <Stack.Navigator initialRouteName={user && !isVerificationInProgress ? "MainScreen" : "Welcome"}>
+      <NavigationContainer 
+        ref={navigationRef}
+        onStateChange={(state) => {
+          // Optional: Add navigation state logging for debugging
+          console.log('Navigation state changed:', state);
+        }}
+      >
+        <Stack.Navigator 
+          key={user && !isVerificationInProgress ? 'authenticated' : 'unauthenticated'}
+          initialRouteName={user && !isVerificationInProgress ? "MainScreen" : "Welcome"}
+        >
           {!user || isVerificationInProgress ? (
             // מסכי אימות - מוצגים כאשר המשתמש לא מחובר או כאשר תהליך האימות מתבצע
             <>
@@ -88,6 +163,7 @@ export default function App() {
               <Stack.Screen name="CollectionFormat" component={CollectionFormat} options={{ headerShown: false }} />
               <Stack.Screen name="ShareHandler" component={ShareHandler} options={{ headerShown: false }} />
               <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
+              <Stack.Screen name="MyLinks" component={MyLinks} options={{ headerShown: false }} />
               <Stack.Screen 
                 name="CollectionScreen" 
                 component={CollectionScreen}

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Dim
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
-import { db, auth } from '../FireBase/Config.js';
+import { db, auth } from '../services/firebase/Config.js';
 import { collection, getDocs, query, where, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import Footer from '../components/Footer';

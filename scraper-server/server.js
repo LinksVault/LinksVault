@@ -3,11 +3,11 @@ const fetch = require('node-fetch');
 const { JSDOM } = require('jsdom');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
 const compression = require('compression');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT) || 3000;
 
 // Security middleware
 app.use(helmet());
@@ -90,43 +90,80 @@ async function scrapeOpenGraph(url) {
       throw new Error('Invalid protocol. Only HTTP and HTTPS are allowed.');
     }
 
-    // Enhanced user agent for better compatibility
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    // Use proxy services for better Railway compatibility
+    const proxyServices = [
+      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+      `https://cors-anywhere.herokuapp.com/${url}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+    ];
     
-    // Enhanced headers for better social media compatibility
-    const headers = {
-      'User-Agent': userAgent,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Cache-Control': 'max-age=0'
-    };
-
-    // Add platform-specific headers
-    if (url.includes('instagram.com')) {
-      headers['Referer'] = 'https://www.instagram.com/';
-    } else if (url.includes('facebook.com')) {
-      headers['Referer'] = 'https://www.facebook.com/';
+    let response = null;
+    let html = null;
+    
+    // Try each proxy service until one works
+    for (const proxyUrl of proxyServices) {
+      try {
+        console.log(`Trying proxy: ${proxyUrl.split('?')[0]}`);
+        response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+          },
+          timeout: 4000, // PERFORMANCE: Reduced from 10s to 4s for faster failures
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          html = data.contents || data;
+          if (html) {
+            console.log('Proxy service successful');
+            break;
+          }
+        }
+      } catch (error) {
+        console.log(`Proxy failed: ${error.message}`);
+        continue;
+      }
     }
     
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-      timeout: 15000, // Increased timeout to 15 seconds
-      follow: 5, // Follow up to 5 redirects
-    });
+    // If all proxies failed, try direct fetch as last resort
+    if (!html) {
+      console.log('All proxies failed, trying direct fetch');
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      
+      const headers = {
+        'User-Agent': userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
+      };
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // Add platform-specific headers
+      if (url.includes('instagram.com')) {
+        headers['Referer'] = 'https://www.instagram.com/';
+      } else if (url.includes('facebook.com')) {
+        headers['Referer'] = 'https://www.facebook.com/';
+      }
+      
+      response = await fetch(url, {
+        method: 'GET',
+        headers,
+        timeout: 10000,
+        follow: 3,
+      });
+      
+      if (response.ok) {
+        html = await response.text();
+      }
     }
 
-    const html = await response.text();
+    if (!html) {
+      throw new Error('All fetching methods failed');
+    }
     const dom = new JSDOM(html);
     const document = dom.window.document;
 
@@ -417,7 +454,7 @@ app.use('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Legal Scraper Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🔍 Scrape endpoint: http://localhost:${PORT}/api/scrape`);

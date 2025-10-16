@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../FireBase/Config';
+import { db } from '../services/firebase/Config';
 
 export default function CollectionScreen() {
   // משתני מצב: רשימת האלבומים, טעינה, שגיאה

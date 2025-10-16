@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Validate image files
+    function isValidImage() {
+      return request.resource.size < 10 * 1024 * 1024 && // 10MB max
+             request.resource.contentType.matches('image/.*');
+    }
+    
+    // User profile images
+    match /users/{userId}/profile/{imageId} {
+      // Allow read if image is public or user owns it
+      allow read: if true; // Profile images can be public
+      
+      // Allow write only to own profile
+      allow write: if isOwner(userId) && isValidImage();
+      
+      // Allow delete only own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Collection/Album images
+    match /albums/{userId}/{albumId}/{imageId} {
+      // Allow read if authenticated
+      allow read: if isSignedIn();
+      
+      // Allow write only if user owns the album
+      allow write: if isOwner(userId) && isValidImage();
+      
+      // Allow delete only own images
+      allow delete: if isOwner(userId);
+    }
+    
+    // Default deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

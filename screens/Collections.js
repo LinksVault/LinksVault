@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, TextInput, Image, ScrollView, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Animated, TextInput, Image, ScrollView, Dimensions, Alert, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { db, auth } from '../FireBase/Config.js';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { db, auth } from '../services/firebase/Config.js';
 import { collection, getDocs, addDoc, doc, setDoc, query, where, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import Footer from '../components/Footer';
-import { uploadImageAsync } from '../CloudInary/imageUpload.js';
+import { uploadImageAsync } from '../services/cloudinary/imageUpload.js';
 import { useTheme } from '../ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -33,10 +33,41 @@ export default function Collections() {
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [editingCollectionId, setEditingCollectionId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const [isRestoringCollection, setIsRestoringCollection] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Hamburger menu and search states
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Pulse animation for loading text
+  useEffect(() => {
+    if (isCreatingCollection || isRestoringCollection) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.7,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isCreatingCollection, isRestoringCollection]);
 
   // New state for sorting
-  const [sortBy, setSortBy] = useState('dateCreated'); // dateCreated, newestFirst, oldestFirst, lastModified, nameAZ, nameZA, activity, leastActive, recentlyUpdated, largest, smallest
-  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [sortBy, setSortBy] = useState('dateCreated'); // dateCreated, newestFirst, oldestFirst, lastModified, nameAZ, nameZA, activity, leastActive, recentlyUpdated, largest, smallest, favorites
+  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc - default: newest to oldest
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [originalCollections, setOriginalCollections] = useState([]);
@@ -52,11 +83,14 @@ export default function Collections() {
   const [selectedCollections, setSelectedCollections] = useState([]);
   
   // Animation for selection indicators
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   
   // Delete confirmation modal state
   const [deleteConfirmModalVisible, setDeleteConfirmModalVisible] = useState(false);
   const [collectionToDelete, setCollectionToDelete] = useState(null);
+  
+  // Trash view state
+  const [showTrashView, setShowTrashView] = useState(false);
+  const [deletedCollections, setDeletedCollections] = useState([]);
   
 
 
@@ -93,7 +127,15 @@ export default function Collections() {
   // Note: We no longer need to re-sort collections in useEffect since we're using getDisplayCollections()
   // which handles both filtering and sorting dynamically
 
-
+  // Refresh collections when screen comes into focus (e.g., returning from CollectionFormat)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUser) {
+        console.log('Collections screen focused, refreshing collections...');
+        fetchCollections(currentUser.uid);
+      }
+    }, [currentUser])
+  );
 
   // הסרת הכותרת העליונה והגדרת אנימציית הופעה
   useEffect(() => {
@@ -111,18 +153,23 @@ export default function Collections() {
     }).start();
   }, []);
 
-  // שליפת האוספים מהדאטהבייס
+  // שליפת האוספים מהדאטהבייס (excluding soft-deleted)
   const fetchCollections = async (userId) => {
     try {
       console.log('Fetching collections for user:', userId);
       const collectionsRef = collection(db, 'albums');
       const q = query(collectionsRef, where('userId', '==', userId));
       const snapshot = await getDocs(q);
-      const collectionsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      console.log('Fetched collections from Firebase:', collectionsData.length, 'collections');
+      
+      // Filter out soft-deleted collections
+      const collectionsData = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(collection => !collection.isDeleted); // Exclude soft-deleted collections
+      
+      console.log('Fetched collections from Firebase:', collectionsData.length, 'active collections');
       console.log('Current sort settings:', { sortBy, sortOrder });
       
       // Store original collections and apply sorting
@@ -141,6 +188,36 @@ export default function Collections() {
     }
   };
 
+  // Fetch deleted collections for trash view
+  const fetchDeletedCollections = async (userId) => {
+    try {
+      console.log('Fetching deleted collections for user:', userId);
+      const collectionsRef = collection(db, 'albums');
+      const q = query(collectionsRef, where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      
+      // Filter for soft-deleted collections only
+      const deletedCollectionsData = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(collection => collection.isDeleted === true);
+      
+      // Sort by deletion date (newest first)
+      deletedCollectionsData.sort((a, b) => {
+        const dateA = new Date(a.deletedAt || 0);
+        const dateB = new Date(b.deletedAt || 0);
+        return dateB - dateA;
+      });
+      
+      setDeletedCollections(deletedCollectionsData);
+      console.log('Fetched deleted collections:', deletedCollectionsData.length);
+    } catch (error) {
+      console.error('Error fetching deleted collections:', error);
+    }
+  };
+
   // פתיחת חלון המודל ליצירת אוסף חדש
   const openModal = () => {
     setModalVisible(true);
@@ -153,6 +230,11 @@ export default function Collections() {
 
   // סגירת חלון המודל
   const closeModal = () => {
+    // Prevent closing modal while creating collection
+    if (isCreatingCollection) {
+      return;
+    }
+    
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 300,
@@ -176,6 +258,9 @@ export default function Collections() {
       alert('Please select an image and enter a collection name.');
       return;
     }
+
+    // Set loading state
+    setIsCreatingCollection(true);
 
     try {
       // בדיקת אתחול Firebase
@@ -271,6 +356,9 @@ export default function Collections() {
       }
       
       alert(`${errorMessage}\n\nTechnical details: ${error.message}`);
+    } finally {
+      // Reset loading state
+      setIsCreatingCollection(false);
     }
   };
 
@@ -369,6 +457,10 @@ export default function Collections() {
 
   // הסתרת תפריט האפשרויות
   const hideDropdown = () => {
+    // Prevent closing dropdown while restoring collection
+    if (isRestoringCollection) {
+      return;
+    }
     setDropdownVisible(false);
     setSelectedCollection(null);
   };
@@ -401,7 +493,8 @@ export default function Collections() {
         // Update Firebase with the new Cloudinary URL
         const docRef = doc(db, 'albums', selectedCollection.id);
         await updateDoc(docRef, {
-          imageLink: newImageLink
+          imageLink: newImageLink,
+          lastModified: new Date().toISOString()
         });
         
         // עדכון המצב המקומי
@@ -434,7 +527,8 @@ export default function Collections() {
       if (selectedCollection) {
         const docRef = doc(db, 'albums', selectedCollection.id);
         await updateDoc(docRef, {
-          imageLink: null
+          imageLink: null,
+          lastModified: new Date().toISOString()
         });
         
         // עדכון המצב המקומי
@@ -453,7 +547,7 @@ export default function Collections() {
     }
   };
 
-        // מחיקת אוסף
+        // Soft delete collection (mark as deleted instead of actually deleting)
   const handleDeleteCollection = async () => {
     if (!selectedCollection || !currentUser || !db) {
       showSuccessMessage('Cannot delete collection. Please try again.');
@@ -461,63 +555,144 @@ export default function Collections() {
     }
 
     Alert.alert(
-      'Delete Collection',
-      `Are you sure you want to delete "${selectedCollection.title}" and all its links?`,
+      'Move to Trash',
+      `Are you sure you want to move "${selectedCollection.title}" to trash? You can restore it within 30 days.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Move to Trash',
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('Starting collection deletion process...');
+              console.log('Starting soft deletion process...');
               
-              // Step 1: Delete the collection document
+              // Step 1: Mark collection as deleted with timestamp
               const docRef = doc(db, 'albums', selectedCollection.id);
-              await deleteDoc(docRef);
-              console.log('Collection document deleted');
+              await updateDoc(docRef, {
+                isDeleted: true,
+                deletedAt: new Date().toISOString(),
+                deletedBy: currentUser.uid
+              });
+              console.log('Collection marked as deleted');
               
-              // Step 2: Clean up associated link previews
-              if (selectedCollection.listLink && selectedCollection.listLink.length > 0) {
-                console.log(`Cleaning up ${selectedCollection.listLink.length} link previews...`);
-                
-                const deletePromises = selectedCollection.listLink.map(async (link) => {
-                  try {
-                    // Create the same safe document ID used for link previews
-                    const normalizedUrl = link.url.trim();
-                    const safeDocId = encodeURIComponent(normalizedUrl).replace(/[^a-zA-Z0-9]/g, '_');
-                    const previewDocRef = doc(db, 'linkPreviews', safeDocId);
-                    
-                    // Try to delete the preview document (it might not exist)
-                    await deleteDoc(previewDocRef);
-                    console.log(`Deleted preview for: ${link.url}`);
-                  } catch (previewError) {
-                    // Preview document might not exist, which is fine
-                    console.log(`Preview for ${link.url} not found or already deleted`);
-                  }
-                });
-                
-                // Wait for all preview deletions to complete
-                await Promise.all(deletePromises);
-                console.log('All link previews cleaned up');
-              }
-              
-              // Step 3: Update local state
+              // Step 2: Update local state - remove from active collections
               setCollections(prev => prev.filter(col => col.id !== selectedCollection.id));
               setOriginalCollections(prev => prev.filter(col => col.id !== selectedCollection.id));
               
               hideDropdown();
               setSelectedCollection(null);
               
-              console.log('Collection deletion completed successfully');
-              showSuccessMessage('Collection and all links deleted successfully');
+              console.log('Soft deletion completed successfully');
+              
+              // Show success message with restore option
+              Alert.alert(
+                'Collection Moved to Trash',
+                `"${selectedCollection.title}" has been moved to trash. You can restore it within 30 days.`,
+                [
+                  {
+                    text: 'OK',
+                    style: 'default'
+                  },
+                  {
+                    text: 'Restore Now',
+                    style: 'default',
+                    onPress: () => restoreCollection(selectedCollection.id, selectedCollection.title)
+                  }
+                ]
+              );
             } catch (error) {
-              console.error('Error deleting collection:', error);
+              console.error('Error soft deleting collection:', error);
               showSuccessMessage('Failed to delete collection. Please try again.');
             }
           }
         }
       ]
+    );
+  };
+
+  // Restore deleted collection
+  const restoreCollection = async (collectionId, collectionTitle) => {
+    try {
+      setIsRestoringCollection(true);
+      console.log('Restoring collection:', collectionId);
+      const docRef = doc(db, 'albums', collectionId);
+      
+      // Remove deleted flags
+      await updateDoc(docRef, {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null
+      });
+      
+      console.log('Collection restored successfully');
+      
+      // Refresh collections to show the restored collection
+      if (currentUser) {
+        fetchCollections(currentUser.uid);
+        fetchDeletedCollections(currentUser.uid); // Refresh trash view
+      }
+      
+      showSuccessMessage(`"${collectionTitle}" has been restored successfully.`);
+    } catch (error) {
+      console.error('Error restoring collection:', error);
+      showSuccessMessage('Failed to restore collection. Please try again.');
+    } finally {
+      setIsRestoringCollection(false);
+    }
+  };
+
+  // Permanently delete collection (after 30 days or user choice)
+  const permanentDeleteCollection = async (collectionToDelete) => {
+    Alert.alert(
+      'Delete Forever',
+      `Are you sure you want to permanently delete "${collectionToDelete.title}"? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('Starting permanent deletion process...');
+              
+              // Step 1: Actually delete the collection document
+              const docRef = doc(db, 'albums', collectionToDelete.id);
+              await deleteDoc(docRef);
+              console.log('Collection permanently deleted');
+              
+              // Step 2: Clean up associated link previews
+              if (collectionToDelete.listLink && collectionToDelete.listLink.length > 0) {
+                console.log(`Cleaning up ${collectionToDelete.listLink.length} link previews...`);
+                
+                const deletePromises = collectionToDelete.listLink.map(async (link) => {
+                  try {
+                    const normalizedUrl = link.url.trim();
+                    const safeDocId = encodeURIComponent(normalizedUrl).replace(/[^a-zA-Z0-9]/g, '_');
+                    const previewDocRef = doc(db, 'linkPreviews', safeDocId);
+                    await deleteDoc(previewDocRef);
+                    console.log(`Deleted preview for: ${link.url}`);
+                  } catch (previewError) {
+                    console.log(`Preview for ${link.url} not found or already deleted`);
+                  }
+                });
+                
+                await Promise.all(deletePromises);
+                console.log('All link previews cleaned up');
+              }
+              
+              console.log('Permanent deletion completed successfully');
+              showSuccessMessage('Collection permanently deleted.');
+            } catch (error) {
+              console.error('Error permanently deleting collection:', error);
+              showSuccessMessage('Failed to permanently delete collection. Please try again.');
+            }
+          },
+        },
+      ],
+      { cancelable: true }
     );
   };
 
@@ -527,7 +702,8 @@ export default function Collections() {
       if (editingTitle.trim()) {
         const docRef = doc(db, 'albums', collectionId);
         await updateDoc(docRef, {
-          title: editingTitle.trim()
+          title: editingTitle.trim(),
+          lastModified: new Date().toISOString()
         });
         
         // עדכון המצב המקומי - עדכון גם collections וגם originalCollections
@@ -555,6 +731,46 @@ export default function Collections() {
     } catch (error) {
       console.error('Error updating title:', error);
       showSuccessMessage('Failed to update title. Please try again.');
+    }
+  };
+
+  // Toggle favorite status for collection
+  const toggleFavorite = async (collection) => {
+    try {
+      if (!currentUser || !db) {
+        showSuccessMessage('Cannot update favorite. Please try again.');
+        return;
+      }
+
+      const collectionRef = doc(db, 'albums', collection.id);
+      const newFavoriteStatus = !collection.isFavorite;
+      
+      await updateDoc(collectionRef, {
+        isFavorite: newFavoriteStatus,
+        lastModified: new Date().toISOString()
+      });
+      
+      // Update local state
+      setCollections(prev => 
+        prev.map(col => 
+          col.id === collection.id 
+            ? { ...col, isFavorite: newFavoriteStatus, lastModified: new Date().toISOString() }
+            : col
+        )
+      );
+      setOriginalCollections(prev => 
+        prev.map(col => 
+          col.id === collection.id 
+            ? { ...col, isFavorite: newFavoriteStatus, lastModified: new Date().toISOString() }
+            : col
+        )
+      );
+      
+      console.log(`Collection ${collection.title} ${newFavoriteStatus ? 'favorited' : 'unfavorited'} successfully`);
+      showSuccessMessage(newFavoriteStatus ? 'Added to favorites!' : 'Removed from favorites!');
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      showSuccessMessage('Failed to update favorite. Please try again.');
     }
   };
 
@@ -628,13 +844,7 @@ export default function Collections() {
         });
       
       case 'activity':
-        return sorted.sort((a, b) => {
-          const countA = a.listLink ? a.listLink.length : 0;
-          const countB = b.listLink ? b.listLink.length : 0;
-          return sortOrder === 'asc' ? countA - countB : countB - countA;
-        });
-      
-      case 'recentlyUpdated':
+        // Most Active = Collections with recent changes (lastModified)
         return sorted.sort((a, b) => {
           const dateA = new Date(a.lastModified || a.createdAt || 0);
           const dateB = new Date(b.lastModified || b.createdAt || 0);
@@ -660,6 +870,13 @@ export default function Collections() {
           const countA = a.listLink ? a.listLink.length : 0;
           const countB = b.listLink ? b.listLink.length : 0;
           return sortOrder === 'asc' ? countA - countB : countB - countA;
+        });
+      
+      case 'favorites':
+        return sorted.sort((a, b) => {
+          const favoriteA = a.isFavorite ? 1 : 0;
+          const favoriteB = b.isFavorite ? 1 : 0;
+          return sortOrder === 'asc' ? favoriteA - favoriteB : favoriteB - favoriteA;
         });
       
       default:
@@ -780,13 +997,16 @@ export default function Collections() {
     }
   };
 
-  // Get filtered and sorted collections
+  // Get filtered and sorted collections (regular or trash view)
   const getDisplayCollections = () => {
-    let filtered = originalCollections;
+    // Choose data source based on view mode
+    const dataSource = showTrashView ? deletedCollections : originalCollections;
+    
+    let filtered = dataSource;
     
     // Apply search filter
     if (searchQuery.trim()) {
-      filtered = originalCollections.filter(collection => 
+      filtered = dataSource.filter(collection => 
         collection.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -814,6 +1034,55 @@ export default function Collections() {
     }
   };
 
+  // Handle hamburger menu toggle
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  // Handle search toggle - disabled for now
+  const toggleSearch = () => {
+    // Search functionality disabled - icon only
+    console.log('Search icon clicked - functionality disabled');
+  };
+
+  // Handle menu item selection
+  const handleMenuAction = (action) => {
+    setIsMenuOpen(false);
+    
+    switch (action) {
+      case 'profile':
+        navigation.navigate('Profile');
+        break;
+      case 'settings':
+        Alert.alert('Settings', 'Settings feature coming soon!');
+        break;
+      case 'help':
+        Alert.alert('Help', 'Need help? Contact support or check our documentation.');
+        break;
+      case 'about':
+        Alert.alert('About', 'SocialVault v1.0\nOrganize your social media content in one place.');
+        break;
+      case 'logout':
+        Alert.alert(
+          'Logout',
+          'Are you sure you want to logout?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Logout', 
+              style: 'destructive',
+              onPress: () => {
+                console.log('User requested logout');
+              }
+            }
+          ]
+        );
+        break;
+      default:
+        break;
+    }
+  };
+
   // הצגת מסך טעינה
   if (loading) {
     return (
@@ -825,6 +1094,13 @@ export default function Collections() {
 
   return (
     <View style={[styles.container, { backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5' }]}>
+      {/* Status Bar */}
+      <StatusBar 
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent={true}
+      />
+      
              {/* Selection Mode Header */}
        {isSelectionMode && (
          <Animated.View style={[styles.selectionHeader, { opacity: fadeAnim }]}>
@@ -868,43 +1144,61 @@ export default function Collections() {
        
        {/* כותרת המסך עם אנימציה */}
        <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-         <Text style={[styles.headerText, { color: isDarkMode ? '#ffffff' : '#333' }]}>My Collections</Text>
-         <Text style={[styles.subtitle, { color: isDarkMode ? '#cccccc' : '#666' }]}>Organize your social media content</Text>
+         {/* Top Left Controls */}
+         <View style={styles.topLeftControls}>
+           <TouchableOpacity 
+             style={[styles.hamburgerButton, { 
+               backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' 
+             }]}
+             onPress={toggleMenu}
+           >
+             <View style={[styles.hamburgerLine, { backgroundColor: isDarkMode ? '#ffffff' : '#333' }]} />
+             <View style={[styles.hamburgerLine, { backgroundColor: isDarkMode ? '#ffffff' : '#333' }]} />
+             <View style={[styles.hamburgerLine, { backgroundColor: isDarkMode ? '#ffffff' : '#333' }]} />
+           </TouchableOpacity>
+           
+           <TouchableOpacity 
+             style={[styles.searchIconButton, { 
+               backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' 
+             }]}
+             onPress={toggleSearch}
+           >
+             <MaterialIcons 
+               name="search" 
+               size={24} 
+               color={isDarkMode ? '#ffffff' : '#333'} 
+             />
+           </TouchableOpacity>
+         </View>
+
+         {/* Top Right Controls */}
+         <View style={styles.topRightControls}>
+           <TouchableOpacity 
+             style={styles.myLinksButton}
+             onPress={() => navigation.navigate('MyLinks')}
+           >
+             <MaterialIcons name="link" size={16} color="#ffffff" />
+             <Text style={styles.myLinksButtonText}>My Links</Text>
+           </TouchableOpacity>
+         </View>
+
         
-                 {/* Share Test Button */}
-                   <TouchableOpacity 
-            style={[styles.shareTestButton, { 
-              backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' 
-            }]}
-            onPress={() => {
-              // Import and use ShareIntentListener for testing
-              import('../utils/ShareIntentListener').then(module => {
-                const ShareIntentListener = module.default;
-                ShareIntentListener.simulateSharedContent(
-                  'Check out this amazing Instagram post!\nhttps://www.instagram.com/p/example\nThis is some great content!'
-                );
-              });
-            }}
-          >
-            <MaterialIcons name="share" size={20} color={isDarkMode ? '#ffffff' : '#333'} />
-            <Text style={[styles.shareTestButtonText, { color: isDarkMode ? '#ffffff' : '#333' }]}>
-              Test Share
-            </Text>
-          </TouchableOpacity>
-          
-          
-         
-
+        {/* Share Test Button moved to menu */}
            
+            
+          
 
             
-          
-                     
+
+             
            
-                       
+                      
             
-            
-      </Animated.View>
+                        
+             
+             
+       </Animated.View>
+
 
       {/* רשימת האוספים */}
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -962,7 +1256,7 @@ export default function Collections() {
             >
               <MaterialIcons name="sort" size={20} color={isDarkMode ? '#ffffff' : '#333'} />
               <Text style={[styles.sortButtonText, { color: isDarkMode ? '#ffffff' : '#333' }]}>
-                Sort by {sortBy === 'dateCreated' ? 'Date Created' : sortBy === 'newestFirst' ? 'Newest First' : sortBy === 'oldestFirst' ? 'Oldest First' : sortBy === 'lastModified' ? 'Last Modified' : sortBy === 'nameAZ' ? 'Name A-Z' : sortBy === 'nameZA' ? 'Name Z-A' : sortBy === 'activity' ? 'Most Active' : sortBy === 'leastActive' ? 'Least Active' : sortBy === 'recentlyUpdated' ? 'Recently Updated' : sortBy === 'largest' ? 'Largest' : sortBy === 'smallest' ? 'Smallest' : 'Custom Order'}
+                Sort by {sortBy === 'dateCreated' ? 'Date Created' : sortBy === 'newestFirst' ? 'Newest First' : sortBy === 'oldestFirst' ? 'Oldest First' : sortBy === 'lastModified' ? 'Last Modified' : sortBy === 'nameAZ' ? 'Name A-Z' : sortBy === 'nameZA' ? 'Name Z-A' : sortBy === 'activity' ? 'Most Active' : sortBy === 'leastActive' ? 'Least Active' : sortBy === 'recentlyUpdated' ? 'Recently Updated' : sortBy === 'largest' ? 'Largest' : sortBy === 'smallest' ? 'Smallest' : sortBy === 'favorites' ? 'Favorites' : 'Custom Order'}
               </Text>
               <MaterialIcons name="arrow-drop-down" size={20} color={isDarkMode ? '#ffffff' : '#333'} />
             </TouchableOpacity>
@@ -1016,33 +1310,7 @@ export default function Collections() {
                 <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Date Created</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'newestFirst' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
-                  borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                }]}
-                onPress={() => {
-                  handleSortChange('newestFirst', sortOrder);
-                  setShowSortMenu(false);
-                }}
-              >
-                <MaterialIcons name="new-releases" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Newest First</Text>
-              </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'oldestFirst' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
-                  borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                }]}
-                onPress={() => {
-                  handleSortChange('oldestFirst', sortOrder);
-                  setShowSortMenu(false);
-                }}
-              >
-                <MaterialIcons name="history" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Oldest First</Text>
-              </TouchableOpacity>
               
               <TouchableOpacity 
                 style={[styles.sortMenuItem, { 
@@ -1072,19 +1340,6 @@ export default function Collections() {
                 <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Name A-Z</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'nameZA' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
-                  borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                }]}
-                onPress={() => {
-                  handleSortChange('nameZA', 'desc');
-                  setShowSortMenu(false);
-                }}
-              >
-                <MaterialIcons name="sort-by-alpha" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Name Z-A</Text>
-              </TouchableOpacity>
               
               <TouchableOpacity 
                 style={[styles.sortMenuItem, { 
@@ -1100,33 +1355,7 @@ export default function Collections() {
                 <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Most Active</Text>
               </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'leastActive' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
-                  borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                }]}
-                onPress={() => {
-                  handleSortChange('leastActive', sortOrder);
-                  setShowSortMenu(false);
-                }}
-              >
-                <MaterialIcons name="trending-down" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Least Active</Text>
-              </TouchableOpacity>
               
-              <TouchableOpacity 
-                style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'recentlyUpdated' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
-                  borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-                }]}
-                onPress={() => {
-                  handleSortChange('recentlyUpdated', sortOrder);
-                  setShowSortMenu(false);
-                }}
-              >
-                <MaterialIcons name="access-time" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Recently Updated</Text>
-              </TouchableOpacity>
               
               <TouchableOpacity 
                 style={[styles.sortMenuItem, { 
@@ -1144,17 +1373,18 @@ export default function Collections() {
               
               <TouchableOpacity 
                 style={[styles.sortMenuItem, { 
-                  backgroundColor: sortBy === 'smallest' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
+                  backgroundColor: sortBy === 'favorites' ? (isDarkMode ? '#3a3a3a' : '#f0f5ff') : 'transparent',
                   borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
                 }]}
                 onPress={() => {
-                  handleSortChange('smallest', sortOrder);
+                  handleSortChange('favorites', sortOrder);
                   setShowSortMenu(false);
                 }}
               >
-                <MaterialIcons name="expand-more" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
-                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Smallest</Text>
+                <MaterialIcons name="star" size={18} color={isDarkMode ? '#ffffff' : '#333'} />
+                <Text style={[styles.sortMenuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Favorites</Text>
               </TouchableOpacity>
+              
               
 
             </View>
@@ -1190,20 +1420,17 @@ export default function Collections() {
             getDisplayCollections().map((collection, index) => (
               <Animated.View
                 key={collection.id}
-                style={[
-                  viewMode === 'grid' ? styles.collectionCard : styles.collectionCardList, 
-                  { 
-                    backgroundColor: isSelectionMode 
-                      ? (isDarkMode ? '#3a3a3a' : '#f8f9fa') 
-                      : (isDarkMode ? '#2a2a2a' : '#ffffff'),
-                    shadowColor: isDarkMode ? '#000' : '#000',
-                    borderWidth: 1,
-                    borderColor: (isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'),
-                    elevation: 8,
-                    shadowRadius: 12,
-                    zIndex: 1,
-                  }
-                ]}
+                  style={[
+                    viewMode === 'grid' ? styles.collectionCard : styles.collectionCardList, 
+                    { 
+                      backgroundColor: isSelectionMode 
+                        ? (isDarkMode ? '#3a3a3a' : '#f8f9fa') 
+                        : (isDarkMode ? '#2a2a2a' : '#ffffff'),
+                      borderWidth: 1,
+                      borderColor: (isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'),
+                      zIndex: 1,
+                    }
+                  ]}
               >
                 <TouchableOpacity
                   style={{ flex: 1 }}
@@ -1239,7 +1466,7 @@ export default function Collections() {
                         </Animated.View>
                       )}
                       
-                      {/* Three dots menu moved to image overlay */}
+                      {/* Three dots menu - positioned top-left */}
                       {viewMode === 'grid' && (
                         <TouchableOpacity
                           style={[styles.imageOptionsButton, { 
@@ -1257,10 +1484,27 @@ export default function Collections() {
                           />
                         </TouchableOpacity>
                       )}
+
+                      {/* Star/Favorite button - positioned top-right */}
+                      <TouchableOpacity
+                        style={[styles.starButton, { 
+                          backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 255, 255, 0.9)' 
+                        }]}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(collection);
+                        }}
+                      >
+                        <MaterialIcons 
+                          name={collection.isFavorite ? "star" : "star-border"} 
+                          size={20} 
+                          color={collection.isFavorite ? "#FFD700" : (isDarkMode ? '#ffffff' : '#333')} 
+                        />
+                      </TouchableOpacity>
                       
                       <View style={styles.itemCountBadge}>
                         <Text style={styles.itemCountText}>
-                          {collection.listLink ? collection.listLink.length : 0} פריטים
+                           {Array.isArray(collection.listLink) ? collection.listLink.length : 0} items
                         </Text>
                       </View>
                     </View>
@@ -1295,8 +1539,17 @@ export default function Collections() {
                       {/* Collection count for list view */}
                       {viewMode === 'list' && (
                         <Text style={[styles.collectionCount, { color: isDarkMode ? '#cccccc' : '#666' }]}>
-                          {collection.listLink ? collection.listLink.length : 0} items
+                          {Array.isArray(collection.listLink) ? collection.listLink.length : 0} items
                         </Text>
+                      )}
+                      
+                      {/* Trash-specific info */}
+                      {showTrashView && (
+                        <View style={styles.trashInfoContainer}>
+                          <Text style={[styles.trashDateText, { color: isDarkMode ? '#cccccc' : '#666' }]}>
+                            Deleted: {new Date(collection.deletedAt).toLocaleDateString()}
+                          </Text>
+                        </View>
                       )}
                     </View>
                   
@@ -1348,77 +1601,131 @@ export default function Collections() {
             onStartShouldSetResponder={() => true}
             onResponderGrant={() => {}}
           >
-            {/* כפתור שינוי תמונה */}
-            <TouchableOpacity 
-              style={styles.dropdownItem} 
-              onPress={() => {
-                hideDropdown();
-                handleChangeImage();
-              }}
-            >
-              <MaterialIcons name="photo-library" size={20} color="#4A90E2" />
-              <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Change Image</Text>
-            </TouchableOpacity>
+            {/* Regular view options - only show when NOT in trash */}
+            {!showTrashView && (
+              <>
+                {/* כפתור שינוי תמונה */}
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => {
+                    hideDropdown();
+                    handleChangeImage();
+                  }}
+                >
+                  <MaterialIcons name="photo-library" size={20} color="#4A90E2" />
+                  <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Change Image</Text>
+                </TouchableOpacity>
+                
+                {/* כפתור מחיקת תמונה */}
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => {
+                    hideDropdown();
+                    handleDeleteImage();
+                  }}
+                >
+                  <MaterialIcons name="delete" size={20} color="#FF4444" />
+                  <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Delete Image</Text>
+                </TouchableOpacity>
+                
+                {/* כפתור שינוי כותרת */}
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => startEditingTitle(selectedCollection)}
+                >
+                  <MaterialIcons name="edit" size={20} color="#4A90E2" />
+                  <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Change Title</Text>
+                </TouchableOpacity>
+              </>
+            )}
             
-            {/* כפתור מחיקת תמונה */}
-            <TouchableOpacity 
-              style={styles.dropdownItem} 
-              onPress={() => {
-                hideDropdown();
-                handleDeleteImage();
-              }}
-            >
-              <MaterialIcons name="delete" size={20} color="#FF4444" />
-              <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Delete Image</Text>
-            </TouchableOpacity>
-            
-            {/* כפתור שינוי כותרת */}
-            <TouchableOpacity 
-              style={styles.dropdownItem} 
-              onPress={() => startEditingTitle(selectedCollection)}
-            >
-              <MaterialIcons name="edit" size={20} color="#4A90E2" />
-              <Text style={[styles.dropdownText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Change Title</Text>
-            </TouchableOpacity>
-            
-                         {/* כפתור מחיקת אוסף */}
-             <TouchableOpacity 
-               style={[styles.dropdownItem, styles.deleteDropdownItem]} 
-               onPress={async () => {
-                 console.log('=== DELETE BUTTON CLICKED ===');
-                 console.log('Delete collection button pressed for:', selectedCollection?.title);
-                 console.log('Selected collection data:', selectedCollection);
-                 console.log('Current user:', currentUser?.uid);
-                 console.log('Firebase db:', !!db);
-                 
-                 if (!selectedCollection) {
-                   console.error('No selectedCollection found');
-                   alert('No collection selected for deletion');
-                   return;
-                 }
-                 
-                 if (!currentUser) {
-                   console.error('No current user found');
-                   alert('You must be logged in to delete collections');
-                   return;
-                 }
-                 
-                 if (!db) {
-                   console.error('Firebase database not initialized');
-                   alert('Database connection error. Please try again.');
-                   return;
-                 }
+                         {/* Conditional options based on view mode */}
+            {showTrashView ? (
+              // Trash view options
+              <>
+                {/* Restore Collection */}
+                <TouchableOpacity 
+                  style={[styles.dropdownItem, styles.restoreDropdownItem]} 
+                  onPress={async () => {
+                    if (selectedCollection && !isRestoringCollection) {
+                      await restoreCollection(selectedCollection.id, selectedCollection.title);
+                      hideDropdown();
+                      setSelectedCollection(null);
+                    }
+                  }}
+                  disabled={isRestoringCollection}
+                >
+                  {isRestoringCollection ? (
+                    <>
+                      <ActivityIndicator size="small" color="#4CAF50" style={{ marginRight: 8 }} />
+                      <Animated.Text style={[styles.dropdownText, { color: '#4CAF50', fontWeight: '600', opacity: pulseAnim }]}>
+                        Restoring...
+                      </Animated.Text>
+                    </>
+                  ) : (
+                    <>
+                      <MaterialIcons name="restore" size={20} color="#4CAF50" />
+                      <Text style={[styles.dropdownText, { color: '#4CAF50', fontWeight: '600' }]}>Restore Collection</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                
+                {/* Permanently Delete */}
+                <TouchableOpacity 
+                  style={[styles.dropdownItem, styles.deleteDropdownItem, isRestoringCollection && { opacity: 0.5 }]} 
+                  onPress={async () => {
+                    if (selectedCollection && !isRestoringCollection) {
+                      await permanentDeleteCollection(selectedCollection);
+                      hideDropdown();
+                      setSelectedCollection(null);
+                    }
+                  }}
+                  disabled={isRestoringCollection}
+                >
+                  <MaterialIcons name="delete-forever" size={20} color="#FF4444" />
+                  <Text style={[styles.dropdownText, { color: '#FF4444', fontWeight: '600' }]}>Delete Forever</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Regular view options
+              <TouchableOpacity 
+                style={[styles.dropdownItem, styles.deleteDropdownItem]} 
+                onPress={async () => {
+                  console.log('=== DELETE BUTTON CLICKED ===');
+                  console.log('Delete collection button pressed for:', selectedCollection?.title);
+                  console.log('Selected collection data:', selectedCollection);
+                  console.log('Current user:', currentUser?.uid);
+                  console.log('Firebase db:', !!db);
+                  
+                  if (!selectedCollection) {
+                    console.error('No selectedCollection found');
+                    alert('No collection selected for deletion');
+                    return;
+                  }
+                  
+                  if (!currentUser) {
+                    console.error('No current user found');
+                    alert('You must be logged in to delete collections');
+                    return;
+                  }
+                  
+                  if (!db) {
+                    console.error('Firebase database not initialized');
+                    alert('Database connection error. Please try again.');
+                    return;
+                  }
 
-                 console.log('All checks passed, showing custom confirmation modal...');
-                 
-                 // Set the collection to delete and show the custom modal
-                 setCollectionToDelete(selectedCollection);
-                 setDeleteConfirmModalVisible(true);
-               }}
-             >
-               <MaterialIcons name="delete-forever" size={20} color="#FF4444" />
-               <Text style={[styles.dropdownText, { color: '#FF4444', fontWeight: '600' }]}>Delete Collection</Text>
-             </TouchableOpacity>
+                  console.log('All checks passed, showing custom confirmation modal...');
+                  
+                  // Set the collection to delete and show the custom modal
+                  setCollectionToDelete(selectedCollection);
+                  setDeleteConfirmModalVisible(true);
+                }}
+              >
+                <MaterialIcons name="delete-forever" size={20} color="#FF4444" />
+                <Text style={[styles.dropdownText, { color: '#FF4444', fontWeight: '600' }]}>Move to Trash</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </TouchableOpacity>
       )}
@@ -1434,9 +1741,17 @@ export default function Collections() {
             transform: [{ translateY }],
             backgroundColor: isDarkMode ? '#2a2a2a' : '#ffffff'
           }]}>
-            <TouchableOpacity onPress={closeModal} style={[styles.closeButton, { 
-              backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' 
-            }]}>
+            <TouchableOpacity 
+              onPress={closeModal} 
+              style={[
+                styles.closeButton, 
+                { 
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  opacity: isCreatingCollection ? 0.5 : 1
+                }
+              ]}
+              disabled={isCreatingCollection}
+            >
               <MaterialIcons name="close" size={24} color={isDarkMode ? '#ffffff' : '#333'} />
             </TouchableOpacity>
 
@@ -1445,9 +1760,11 @@ export default function Collections() {
             <TouchableOpacity
               style={[styles.imagePickerButton, { 
                 backgroundColor: isDarkMode ? '#3a3a3a' : '#f8f9fa',
-                borderColor: '#4A90E2'
+                borderColor: '#4A90E2',
+                opacity: isCreatingCollection ? 0.5 : 1
               }]}
               onPress={chooseImage}
+              disabled={isCreatingCollection}
             >
               {selectedImage ? (
                 <Image
@@ -1474,6 +1791,7 @@ export default function Collections() {
                 placeholderTextColor={isDarkMode ? '#999' : '#999'}
                 value={collectionName}
                 onChangeText={setCollectionName}
+                editable={!isCreatingCollection}
               />
             </View>
 
@@ -1489,15 +1807,28 @@ export default function Collections() {
                 value={frame2Text}
                 onChangeText={setFrame2Text}
                 multiline
+                editable={!isCreatingCollection}
               />
             </View>
 
             <TouchableOpacity 
-              style={styles.createButton}
+              style={[styles.createButton, isCreatingCollection && styles.createButtonDisabled]}
               onPress={createCollection}
+              disabled={isCreatingCollection}
             >
-              <MaterialIcons name="add" size={24} color="white" />
-              <Text style={styles.createButtonText}>Create Collection</Text>
+              {isCreatingCollection ? (
+                <>
+                  <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                  <Animated.Text style={[styles.createButtonText, { opacity: pulseAnim }]}>
+                    Creating Collection...
+                  </Animated.Text>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons name="add" size={24} color="white" />
+                  <Text style={styles.createButtonText}>Create Collection</Text>
+                </>
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -1521,10 +1852,10 @@ export default function Collections() {
           }]}>
             <MaterialIcons name="warning" size={50} color="#FF4444" style={styles.deleteWarningIcon} />
             <Text style={[styles.deleteModalTitle, { color: isDarkMode ? '#ffffff' : '#333' }]}>
-              Delete Collection
+              Move to Trash
             </Text>
             <Text style={[styles.deleteModalText, { color: isDarkMode ? '#cccccc' : '#666' }]}>
-              Are you sure you want to delete "{collectionToDelete?.title}"? This action cannot be undone.
+              Are you sure you want to move "{collectionToDelete?.title}" to trash? You can restore it within 30 days.
             </Text>
             
             <View style={styles.deleteModalButtons}>
@@ -1548,16 +1879,19 @@ export default function Collections() {
                 style={[styles.deleteModalButton, styles.confirmDeleteButton]}
                 onPress={async () => {
                   try {
-                    console.log('User confirmed deletion, starting delete process...');
-                    console.log('Creating document reference for:', collectionToDelete.id);
+                    console.log('User confirmed soft deletion, starting process...');
                     const docRef = doc(db, 'albums', collectionToDelete.id);
                     
-                    console.log('Attempting to delete document...');
-                    await deleteDoc(docRef);
+                    // Mark as deleted with timestamp instead of actually deleting
+                    await updateDoc(docRef, {
+                      isDeleted: true,
+                      deletedAt: new Date().toISOString(),
+                      deletedBy: currentUser.uid
+                    });
                     
-                    console.log('Collection deleted successfully from Firebase');
+                    console.log('Collection marked as deleted successfully');
                     
-                    // Update local state
+                    // Update local state - remove from active collections
                     setCollections(prev => prev.filter(col => col.id !== collectionToDelete.id));
                     setOriginalCollections(prev => prev.filter(col => col.id !== collectionToDelete.id));
                     
@@ -1568,12 +1902,12 @@ export default function Collections() {
                     setSelectedCollection(null);
                     
                     console.log('Showing success message...');
-                    showSuccessMessage('Collection deleted successfully');
+                    showSuccessMessage('Collection moved to trash successfully');
                     
-                    console.log('Delete process completed successfully');
+                    console.log('Soft deletion process completed successfully');
                   } catch (error) {
-                    console.error('=== DELETE ERROR ===');
-                    console.error('Error deleting collection:', error);
+                    console.error('=== SOFT DELETE ERROR ===');
+                    console.error('Error soft deleting collection:', error);
                     console.error('Error code:', error.code);
                     console.error('Error message:', error.message);
                     console.error('Error details:', error);
@@ -1594,11 +1928,137 @@ export default function Collections() {
                 }}
               >
                 <Text style={styles.confirmDeleteButtonText}>
-                  Delete
+                  Move to Trash
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Hamburger Menu Modal */}
+      <Modal
+        transparent={true}
+        visible={isMenuOpen}
+        animationType="none"
+        onRequestClose={() => setIsMenuOpen(false)}
+      >
+        <View style={styles.menuOverlay}>
+          <Animated.View style={[styles.menuContent, { 
+            backgroundColor: isDarkMode ? '#2a2a2a' : '#ffffff',
+            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            transform: [{ translateX: isMenuOpen ? 0 : -320 }]
+          }]}>
+            <View style={styles.menuHeader}>
+              <Text style={[styles.menuTitle, { color: isDarkMode ? '#ffffff' : '#333' }]}>Menu</Text>
+              <TouchableOpacity 
+                onPress={() => setIsMenuOpen(false)}
+                style={[styles.menuCloseButton, { 
+                  backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' 
+                }]}
+              >
+                <MaterialIcons name="close" size={24} color={isDarkMode ? '#ffffff' : '#333'} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.menuItems}>
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('profile')}
+              >
+                <MaterialIcons name="person" size={24} color="#4A90E2" />
+                <Text style={[styles.menuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Profile</Text>
+                <MaterialIcons name="chevron-right" size={20} color={isDarkMode ? '#cccccc' : '#666'} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('settings')}
+              >
+                <MaterialIcons name="settings" size={24} color="#4A90E2" />
+                <Text style={[styles.menuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Settings</Text>
+                <MaterialIcons name="chevron-right" size={20} color={isDarkMode ? '#cccccc' : '#666'} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('help')}
+              >
+                <MaterialIcons name="help" size={24} color="#4A90E2" />
+                <Text style={[styles.menuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Help & Support</Text>
+                <MaterialIcons name="chevron-right" size={20} color={isDarkMode ? '#cccccc' : '#666'} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('about')}
+              >
+                <MaterialIcons name="info" size={24} color="#4A90E2" />
+                <Text style={[styles.menuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>About</Text>
+                <MaterialIcons name="chevron-right" size={20} color={isDarkMode ? '#cccccc' : '#666'} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={async () => {
+                  setIsMenuOpen(false);
+                  const newTrashView = !showTrashView;
+                  setShowTrashView(newTrashView);
+                  
+                  if (newTrashView && currentUser) {
+                    // Fetch deleted collections when entering trash view
+                    await fetchDeletedCollections(currentUser.uid);
+                  }
+                }}
+              >
+                <MaterialIcons 
+                  name={showTrashView ? "restore" : "delete"} 
+                  size={24} 
+                  color={showTrashView ? "#4CAF50" : "#FF9800"} 
+                />
+                <Text style={[styles.menuItemText, { 
+                  color: showTrashView ? "#4CAF50" : "#FF9800" 
+                }]}>
+                  {showTrashView ? 'Back to Collections' : 'View Trash'}
+                </Text>
+                <MaterialIcons 
+                  name="chevron-right" 
+                  size={20} 
+                  color={showTrashView ? "#4CAF50" : "#FF9800"} 
+                />
+              </TouchableOpacity>
+              
+              <View style={[styles.menuDivider, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
+              
+              {/* Test Share - moved from header */}
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => {
+                  import('../utils/ShareIntentListener').then(module => {
+                    const ShareIntentListener = module.default;
+                    ShareIntentListener.simulateSharedContent(
+                      'Check out this amazing Instagram post!\nhttps://www.instagram.com/p/example\nThis is some great content!'
+                    );
+                  });
+                }}
+              >
+                <MaterialIcons name="share" size={24} color="#4A90E2" />
+                <Text style={[styles.menuItemText, { color: isDarkMode ? '#ffffff' : '#333' }]}>Test Share</Text>
+                <MaterialIcons name="chevron-right" size={20} color={isDarkMode ? '#cccccc' : '#666'} />
+              </TouchableOpacity>
+
+              <View style={[styles.menuDivider, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]} />
+
+              <TouchableOpacity 
+                style={styles.menuItem}
+                onPress={() => handleMenuAction('logout')}
+              >
+                <MaterialIcons name="logout" size={24} color="#FF4444" />
+                <Text style={[styles.menuItemText, { color: '#FF4444' }]}>Logout</Text>
+                <MaterialIcons name="chevron-right" size={20} color="#FF4444" />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1639,9 +2099,72 @@ const styles = StyleSheet.create({
   // כותרת המסך
   header: {
     padding: 24,
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 70 : 60,
     alignItems: 'center',
     backgroundColor: 'transparent',
+  },
+  
+  // Top Left Controls
+  topLeftControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 40,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  hamburgerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  hamburgerLine: {
+    width: 18,
+    height: 2,
+    marginVertical: 2,
+    borderRadius: 1,
+  },
+  searchIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  
+  // Top Right Controls
+  topRightControls: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 40,
+    right: 10,
+    zIndex: 10,
+  },
+  myLinksButton: {
+    backgroundColor: '#4A90E2',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#4A90E2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  myLinksButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
 
 
@@ -1680,13 +2203,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginBottom: 16,
     overflow: 'hidden',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
     borderWidth: 1,
   },
   // כרטיס אוסף ברשימה
@@ -1695,13 +2211,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 20,
     overflow: 'hidden',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
     borderWidth: 1,
   },
   // מיכל התמונה
@@ -1733,8 +2242,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     padding: 12,
   },
-  // כפתור אפשרויות על התמונה
+  // כפתור אפשרויות על התמונה - positioned top-left
   imageOptionsButton: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  // כפתור הכוכב/מועדף - positioned top-right
+  starButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -1935,6 +2465,10 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 12,
   },
+  createButtonDisabled: {
+    backgroundColor: '#9E9E9E',
+    opacity: 0.7,
+  },
   // טקסט כפתור יצירה
   createButtonText: {
     color: 'white',
@@ -2085,6 +2619,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  restoreDropdownItem: {
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: 'rgba(76, 175, 80, 0.3)',
+    borderWidth: 1,
+  },
+  trashInfoContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  trashDateText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
   // Sorting Header Styles
   sortingHeader: {
     marginBottom: 20,
@@ -2170,7 +2719,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingTop: 50,
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
@@ -2345,6 +2894,114 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
     textAlign: 'center',
+  },
+  
+  // Mini Search Bar Styles
+  miniSearchContainer: {
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  miniSearchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  miniSearchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+  },
+  miniSearchClose: {
+    padding: 4,
+  },
+  
+  // Hamburger Menu Styles
+  menuOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    backgroundColor: 'transparent',
+  },
+  menuContent: {
+    width: '80%',
+    maxWidth: 320,
+    height: '100%',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderWidth: 1,
+    shadowOffset: {
+      width: -4,
+      height: 0,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingTop: 50,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  menuTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  menuCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuItems: {
+    paddingVertical: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  menuItemText: {
+    flex: 1,
+    marginLeft: 16,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    marginHorizontal: 24,
+    marginVertical: 8,
+  },
+  // Share test button styles (menu icon row uses default row layout)
+  shareTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: 15,
+  },
+  shareTestButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
   },
  });
 

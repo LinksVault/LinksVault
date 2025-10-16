@@ -388,6 +388,7 @@ exports.getLinkPreview = functions
         image: null,
         siteName: 'Unknown site',
         timestamp: new Date().toISOString(),
+        url: normalizedUrl,
       };
 
       const platform = getPlatformPreview(normalizedUrl) || {};
@@ -463,12 +464,18 @@ exports.getLinkPreview = functions
 // Email verification functions
 exports.sendVerificationEmail = functions
   .region('us-central1')
-  .https.onCall(async (data, context) => {
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
     try {
-      const { email, userName } = data;
+      const { email, userName } = req.body;
       
       if (!email) {
-        throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+        return res.status(400).json({ error: 'Email is required' });
       }
 
       // Generate verification code
@@ -528,21 +535,27 @@ exports.sendVerificationEmail = functions
       
       console.log(`Verification email sent to ${email}`);
       
-      return { success: true, message: 'Verification email sent successfully' };
+      return res.json({ success: true, message: 'Verification email sent successfully' });
     } catch (error) {
       console.error('Error sending verification email:', error);
-      throw new functions.https.HttpsError('internal', 'Failed to send verification email');
+      return res.status(500).json({ error: 'Failed to send verification email' });
     }
   });
 
 exports.sendPasswordResetEmail = functions
   .region('us-central1')
-  .https.onCall(async (data, context) => {
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
     try {
-      const { email, userName } = data;
+      const { email, userName } = req.body;
       
       if (!email) {
-        throw new functions.https.HttpsError('invalid-argument', 'Email is required');
+        return res.status(400).json({ error: 'Email is required' });
       }
 
       // Generate reset code
@@ -601,21 +614,30 @@ exports.sendPasswordResetEmail = functions
       
       console.log(`Password reset email sent to ${email}`);
       
-      return { success: true, message: 'Password reset email sent successfully' };
+      return res.json({ success: true, message: 'Password reset email sent successfully' });
     } catch (error) {
       console.error('Error sending password reset email:', error);
-      throw new functions.https.HttpsError('internal', 'Failed to send password reset email');
+      return res.status(500).json({ error: 'Failed to send password reset email' });
     }
   });
 
 exports.verifyCode = functions
   .region('us-central1')
-  .https.onCall(async (data, context) => {
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
     try {
-      const { email, code } = data;
+      const { email, code } = req.body;
+      
+      console.log('🔍 Verifying code for email:', email);
+      console.log('🔑 Code received:', code, 'Type:', typeof code);
       
       if (!email || !code) {
-        throw new functions.https.HttpsError('invalid-argument', 'Email and code are required');
+        return res.status(400).json({ success: false, message: 'Email and code are required' });
       }
 
       // Check verification codes first
@@ -627,10 +649,18 @@ exports.verifyCode = functions
         const now = new Date();
         const expiresAt = verificationData.expiresAt.toDate();
         
+        console.log('📧 Found email verification code');
+        console.log('  Stored code:', verificationData.code, 'Type:', typeof verificationData.code);
+        console.log('  Received code:', code, 'Type:', typeof code);
+        console.log('  Codes match:', verificationData.code === code);
+        console.log('  Expires at:', expiresAt);
+        console.log('  Is expired:', now >= expiresAt);
+        
         if (now < expiresAt && verificationData.code === code) {
           // Code is valid, delete it
           await verificationRef.delete();
-          return { success: true, message: 'Email verified successfully' };
+          console.log('✅ Email verification successful');
+          return res.json({ success: true, message: 'Email verified successfully' });
         }
       }
 
@@ -643,18 +673,92 @@ exports.verifyCode = functions
         const now = new Date();
         const expiresAt = resetData.expiresAt.toDate();
         
+        console.log('🔐 Found password reset code');
+        console.log('  Stored code:', resetData.code, 'Type:', typeof resetData.code);
+        console.log('  Received code:', code, 'Type:', typeof code);
+        console.log('  Codes match:', resetData.code === code);
+        console.log('  Expires at:', expiresAt);
+        console.log('  Current time:', now);
+        console.log('  Is expired:', now >= expiresAt);
+        console.log('  Time difference (minutes):', (expiresAt - now) / 1000 / 60);
+        
         if (now < expiresAt && resetData.code === code) {
-          // Code is valid, delete it
-          await resetRef.delete();
-          return { success: true, message: 'Password reset code verified successfully' };
+          // Code is valid - don't delete it yet, we need it for password reset
+          console.log('✅ Password reset code verification successful');
+          return res.json({ success: true, message: 'Password reset code verified successfully' });
+        } else {
+          console.log('❌ Verification failed - code mismatch or expired');
         }
+      } else {
+        console.log('❌ No password reset code found for this email');
       }
 
       // If we get here, the code is invalid or expired
-      return { success: false, message: 'Invalid or expired verification code' };
+      console.log('❌ Code verification failed - no valid code found');
+      return res.json({ success: false, message: 'Invalid or expired verification code' });
     } catch (error) {
-      console.error('Error verifying code:', error);
-      throw new functions.https.HttpsError('internal', 'Failed to verify code');
+      console.error('💥 Error verifying code:', error);
+      return res.status(500).json({ success: false, message: 'Failed to verify code' });
+    }
+  });
+
+exports.resetPassword = functions
+  .region('us-central1')
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
+    try {
+      const { email, code, newPassword } = req.body;
+      
+      if (!email || !code || !newPassword) {
+        return res.status(400).json({ success: false, message: 'Email, code, and new password are required' });
+      }
+
+      // Verify the reset code one more time
+      const resetRef = db.collection('passwordResets').doc(email);
+      const resetDoc = await resetRef.get();
+      
+      if (!resetDoc.exists) {
+        return res.json({ success: false, message: 'Invalid or expired reset code' });
+      }
+
+      const resetData = resetDoc.data();
+      const now = new Date();
+      const expiresAt = resetData.expiresAt.toDate();
+      
+      if (now >= expiresAt || resetData.code !== code) {
+        // Clean up expired code
+        await resetRef.delete();
+        return res.json({ success: false, message: 'Invalid or expired reset code' });
+      }
+
+      // Code is valid, proceed with password reset
+      try {
+        // Get the user by email
+        const userRecord = await admin.auth().getUserByEmail(email);
+        
+        // Update the user's password
+        await admin.auth().updateUser(userRecord.uid, {
+          password: newPassword
+        });
+        
+        // Delete the reset code
+        await resetRef.delete();
+        
+        console.log(`Password reset successful for ${email}`);
+        
+        return res.json({ success: true, message: 'Password reset successfully' });
+      } catch (authError) {
+        console.error('Error resetting password:', authError);
+        return res.status(500).json({ success: false, message: 'Failed to reset password' });
+      }
+    } catch (error) {
+      console.error('Error in resetPassword function:', error);
+      return res.status(500).json({ success: false, message: 'Failed to reset password' });
     }
   });
 

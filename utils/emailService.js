@@ -1,11 +1,16 @@
 import { getFunctions } from 'firebase/functions';
-import { auth } from '../FireBase/Config';
+import { auth } from '../services/firebase/Config';
 
 // Initialize Firebase Functions
 const functions = getFunctions();
 
-// Get the function URLs
-const baseUrl = 'https://us-central1-social-vault.cloudfunctions.net';
+// Get the function URLs (Cloud Run URLs from v2 functions)
+const functionUrls = {
+  sendVerificationEmail: 'https://sendverificationemail-57eyovomeq-uc.a.run.app',
+  sendPasswordResetEmail: 'https://sendpasswordresetemail-57eyovomeq-uc.a.run.app',
+  verifyCode: 'https://verifycode-57eyovomeq-uc.a.run.app',
+  resetPassword: 'https://us-central1-social-vault.cloudfunctions.net/resetPassword'
+};
 
 /**
  * Send verification email with 6-digit code via Firebase Cloud Functions
@@ -17,7 +22,7 @@ const baseUrl = 'https://us-central1-social-vault.cloudfunctions.net';
 export const sendVerificationEmail = async (userEmail, verificationCode, userName) => {
   try {
     // Call the Firebase Cloud Function via HTTP
-    const response = await fetch(`${baseUrl}/sendVerificationEmail`, {
+    const response = await fetch(functionUrls.sendVerificationEmail, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -55,7 +60,7 @@ export const sendVerificationEmail = async (userEmail, verificationCode, userNam
 export const sendPasswordResetEmail = async (userEmail, resetCode, userName) => {
   try {
     // Call the Firebase Cloud Function via HTTP
-    const response = await fetch(`${baseUrl}/sendPasswordResetEmail`, {
+    const response = await fetch(functionUrls.sendPasswordResetEmail, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -92,7 +97,7 @@ export const sendPasswordResetEmail = async (userEmail, resetCode, userName) => 
 export const verifyCode = async (userEmail, code) => {
   try {
     // Call the Firebase Cloud Function via HTTP
-    const response = await fetch(`${baseUrl}/verifyCode`, {
+    const response = await fetch(functionUrls.verifyCode, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,5 +115,37 @@ export const verifyCode = async (userEmail, code) => {
   } catch (error) {
     console.error('Failed to verify code:', error);
     return { success: false, message: 'Failed to verify code' };
+  }
+};
+
+/**
+ * Reset password with verified code via Firebase Cloud Functions
+ * @param {string} userEmail - The user's email address
+ * @param {string} code - The verified reset code
+ * @param {string} newPassword - The new password
+ * @returns {Promise} - Password reset result
+ */
+export const resetPasswordWithCode = async (userEmail, code, newPassword) => {
+  try {
+    // Call the Firebase Cloud Function via HTTP
+    const response = await fetch(functionUrls.resetPassword, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: userEmail,
+        code: code,
+        newPassword: newPassword
+      })
+    });
+    
+    const result = await response.json();
+    
+    console.log('Password reset result:', result);
+    return result;
+  } catch (error) {
+    console.error('Failed to reset password:', error);
+    return { success: false, message: 'Failed to reset password' };
   }
 };

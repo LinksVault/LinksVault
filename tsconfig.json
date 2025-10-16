@@ -1,16 +1,49 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
+    "allowJs": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "jsx": "react-native",
-    "lib": ["dom", "esnext"],
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
     "moduleResolution": "node",
     "noEmit": true,
-    "skipLibCheck": true,
     "resolveJsonModule": true,
-    "strict": true,
+    "skipLibCheck": true,
+    "target": "ESNext",
+    "strict": false,
+    "noImplicitAny": false,
+    "noImplicitReturns": false,
+    "noImplicitThis": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitOverride": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "noUncheckedIndexedAccess": false,
     "paths": {
-      "@firebase/auth": ["./node_modules/@firebase/auth/dist/index.rn.d.ts"]
-    }
+      "@firebase/auth": [
+        "./node_modules/@firebase/auth/dist/index.rn.d.ts"
+      ]
+    },
+    "typeRoots": [
+      "./node_modules/@types"
+    ]
   },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.js",
+    "**/*.jsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "scraper-server",
+    "functions",
+    "email_verification"
+  ],
   "extends": "expo/tsconfig.base"
 }

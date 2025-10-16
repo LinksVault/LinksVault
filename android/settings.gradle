@@ -1,0 +1,3 @@
+rootProject.name = 'SocialVault'
+
+include ':app'

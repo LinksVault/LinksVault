@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Alert, Switch, StatusBar, Platform, TextInput, Modal } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Switch, StatusBar, Platform, Modal, FlatList } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../ThemeContext';
-import { auth, db } from '../FireBase/Config.js';
+import { auth, db } from '../services/firebase/Config.js';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import Footer from '../components/Footer';
 
 export default function Profile() {
@@ -14,19 +14,40 @@ export default function Profile() {
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
-  
-  // API Token Management State
-  const [apiTokens, setApiTokens] = useState({
-    instagram: '',
-    tiktok: '',
-    youtube: '',
-    twitter: '',
-    facebook: ''
-  });
-  const [tokenModalVisible, setTokenModalVisible] = useState(false);
-  const [editingPlatform, setEditingPlatform] = useState('');
-  const [tempToken, setTempToken] = useState('');
+  const [legalModalVisible, setLegalModalVisible] = useState(false);
+  const scrollViewRef = useRef(null);
+
+  // Function to open modal
+  const openLegalModal = () => {
+    setLegalModalVisible(true);
+  };
+
+  // Function to close modal
+  const closeLegalModal = () => {
+    setLegalModalVisible(false);
+  };
+
+  // Reset ScrollView to top when modal opens
+  useEffect(() => {
+    if (legalModalVisible && scrollViewRef.current) {
+      // Wait for slide animation to complete (300ms)
+      const timer = setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [legalModalVisible]);
+
+  // Handle modal show/hide events
+  const handleModalShow = () => {
+    // Force layout refresh when modal becomes visible
+    setTimeout(() => {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      }
+    }, 100);
+  };
 
   useEffect(() => {
     setCurrentUser(auth.currentUser);
@@ -42,24 +63,12 @@ export default function Profile() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setUserData(userData);
-          
-          // Load API tokens if they exist
-          if (userData.apiTokens) {
-            setApiTokens(userData.apiTokens);
-          }
         } else {
           // User document doesn't exist, create it
           try {
             await setDoc(doc(db, 'users', currentUser.uid), {
               createdAt: new Date().toISOString(),
-              lastUpdated: new Date().toISOString(),
-              apiTokens: {
-                instagram: '',
-                tiktok: '',
-                youtube: '',
-                twitter: '',
-                facebook: ''
-              }
+              lastUpdated: new Date().toISOString()
             });
           } catch (error) {
             console.error('Error creating user document:', error);
@@ -72,105 +81,6 @@ export default function Profile() {
 
     fetchUserData();
   }, [currentUser?.uid]);
-
-  // Save API tokens to Firestore
-  const saveApiTokens = async (newTokens) => {
-    if (!currentUser?.uid) return;
-    
-    try {
-      await updateDoc(doc(db, 'users', currentUser.uid), {
-        apiTokens: newTokens,
-        lastUpdated: new Date().toISOString()
-      });
-      setApiTokens(newTokens);
-      Alert.alert('Success', 'API tokens saved successfully!');
-    } catch (error) {
-      console.error('Error saving API tokens:', error);
-      Alert.alert('Error', 'Failed to save API tokens. Please try again.');
-    }
-  };
-
-  // Open token editing modal
-  const openTokenModal = (platform) => {
-    setEditingPlatform(platform);
-    setTempToken(apiTokens[platform] || '');
-    setTokenModalVisible(true);
-  };
-
-  // Save token from modal
-  const saveToken = () => {
-    if (!editingPlatform) return;
-    
-    const newTokens = { ...apiTokens };
-    newTokens[editingPlatform] = tempToken.trim();
-    
-    saveApiTokens(newTokens);
-    setTokenModalVisible(false);
-    setTempToken('');
-    setEditingPlatform('');
-  };
-
-  // Clear token
-  const clearToken = (platform) => {
-    Alert.alert(
-      'Clear Token',
-      `Are you sure you want to clear your ${platform} API token?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            const newTokens = { ...apiTokens };
-            newTokens[platform] = '';
-            saveApiTokens(newTokens);
-          }
-        }
-      ]
-    );
-  };
-
-  // Get platform display info
-  const getPlatformInfo = (platform) => {
-    const platforms = {
-      instagram: {
-        name: 'Instagram',
-        icon: 'camera-alt',
-        description: 'Access your Instagram saved posts and media',
-        apiUrl: 'https://developers.facebook.com/docs/instagram-api/',
-        color: '#E4405F'
-      },
-      tiktok: {
-        name: 'TikTok',
-        icon: 'video-library',
-        description: 'Access your TikTok favorites and videos',
-        apiUrl: 'https://developers.tiktok.com/',
-        color: '#000000'
-      },
-      youtube: {
-        name: 'YouTube',
-        icon: 'play-circle-filled',
-        description: 'Access your YouTube playlists and saved videos',
-        apiUrl: 'https://developers.google.com/youtube/v3',
-        color: '#FF0000'
-      },
-      twitter: {
-        name: 'Twitter/X',
-        icon: 'chat',
-        description: 'Access your Twitter bookmarks and tweets',
-        apiUrl: 'https://developer.twitter.com/en/docs',
-        color: '#1DA1F2'
-      },
-      facebook: {
-        name: 'Facebook',
-        icon: 'facebook',
-        description: 'Access your Facebook saved posts',
-        apiUrl: 'https://developers.facebook.com/docs/graph-api/',
-        color: '#1877F2'
-      }
-    };
-    return platforms[platform] || {};
-  };
 
   // Helper function for cross-platform alerts
   const showAlert = (title, message, buttons = [{ text: 'OK' }]) => {
@@ -217,14 +127,6 @@ export default function Profile() {
           },
         },
       ]
-    );
-  };
-
-  const handleExportData = () => {
-    showAlert(
-      'Export Data',
-      'This feature will be available soon!',
-      [{ text: 'OK' }]
     );
   };
 
@@ -464,115 +366,7 @@ export default function Profile() {
             }
             showArrow={false}
           />
-          
-          <ProfileItem
-            icon="backup"
-            title="Auto Backup"
-            subtitle="Automatically backup your data to cloud"
-            iconColor="#4ECDC4"
-            rightComponent={
-              <Switch
-                value={autoBackupEnabled}
-                onValueChange={setAutoBackupEnabled}
-                trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-                thumbColor={autoBackupEnabled ? '#ffffff' : '#ffffff'}
-                ios_backgroundColor="#E0E0E0"
-                style={styles.modernSwitch}
-              />
-            }
-            showArrow={false}
-          />
 
-        </ProfileSection>
-
-        {/* Data Management Section */}
-        <ProfileSection title="Data Management" icon="storage" iconColor="#4A90E2">
-          <ProfileItem
-            icon="cloud-download"
-            title="Export Data"
-            subtitle="Download all your collections and data"
-            iconColor="#A8E6CF"
-            onPress={handleExportData}
-          />
-          
-          <ProfileItem
-            icon="storage"
-            title="Storage Usage"
-            subtitle="Manage your app storage and cache"
-            iconColor="#FFB6C1"
-            onPress={() => showAlert('Coming Soon', 'Storage management will be available soon!')}
-          />
-        </ProfileSection>
-
-        {/* API Tokens Section */}
-        <ProfileSection title="API Tokens" icon="api" iconColor="#4A90E2">
-          <View style={styles.apiTokensContainer}>
-            <Text style={[styles.apiTokensDescription, { color: isDarkMode ? '#B0B0B0' : '#666' }]}>
-              Add your API tokens to access private content and get better previews from social media platforms.
-            </Text>
-            
-            {Object.keys(apiTokens).map((platform) => {
-              const platformInfo = getPlatformInfo(platform);
-              const hasToken = apiTokens[platform] && apiTokens[platform].length > 0;
-              
-              return (
-                <View key={platform} style={[styles.apiTokenItem, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
-                  <View style={styles.apiTokenHeader}>
-                    <View style={styles.apiTokenInfo}>
-                      <MaterialIcons 
-                        name={platformInfo.icon} 
-                        size={24} 
-                        color={platformInfo.color} 
-                        style={styles.apiTokenIcon}
-                      />
-                      <View style={styles.apiTokenDetails}>
-                        <Text style={[styles.apiTokenName, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-                          {platformInfo.name}
-                        </Text>
-                        <Text style={[styles.apiTokenDesc, { color: isDarkMode ? '#B0B0B0' : '#666' }]}>
-                          {platformInfo.description}
-                        </Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.apiTokenActions}>
-                      {hasToken && (
-                        <TouchableOpacity
-                          style={[styles.tokenStatus, { backgroundColor: '#4CAF50' }]}
-                          onPress={() => openTokenModal(platform)}
-                        >
-                          <MaterialIcons name="check" size={16} color="#ffffff" />
-                          <Text style={styles.tokenStatusText}>Connected</Text>
-                        </TouchableOpacity>
-                      )}
-                      
-                      <TouchableOpacity
-                        style={[styles.tokenButton, { backgroundColor: hasToken ? '#FF6B6B' : '#4A90E2' }]}
-                        onPress={() => hasToken ? clearToken(platform) : openTokenModal(platform)}
-                      >
-                        <MaterialIcons 
-                          name={hasToken ? 'delete' : 'add'} 
-                          size={20} 
-                          color="#ffffff" 
-                        />
-                        <Text style={styles.tokenButtonText}>
-                          {hasToken ? 'Remove' : 'Add Token'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  
-                  {hasToken && (
-                    <View style={styles.tokenPreview}>
-                      <Text style={[styles.tokenPreviewText, { color: isDarkMode ? '#B0B0B0' : '#666' }]}>
-                        Token: {apiTokens[platform].substring(0, 20)}...
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
         </ProfileSection>
 
         {/* Support Section */}
@@ -735,6 +529,21 @@ export default function Profile() {
                   that no other app offers.
                 </Text>
               </View>
+              
+              {/* Legal Terms Button */}
+              <TouchableOpacity
+                style={[styles.legalButton, { 
+                  backgroundColor: isDarkMode ? '#4A90E2' : '#4A90E2',
+                  borderColor: isDarkMode ? '#4A90E2' : '#4A90E2'
+                }]}
+                onPress={openLegalModal}
+              >
+                <MaterialIcons name="gavel" size={20} color="#ffffff" />
+                <Text style={styles.legalButtonText}>
+                  View Full Legal Terms & Privacy Policy
+                </Text>
+                <MaterialIcons name="arrow-forward" size={20} color="#ffffff" />
+              </TouchableOpacity>
             </View>
           </View>
         </ProfileSection>
@@ -759,87 +568,256 @@ export default function Profile() {
         </ProfileSection>
       </ScrollView>
 
-      {/* API Token Editing Modal */}
+      {/* Legal Terms Modal */}
       <Modal
-        visible={tokenModalVisible}
+        visible={legalModalVisible}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setTokenModalVisible(false)}
+        statusBarTranslucent={true}
+        onRequestClose={closeLegalModal}
+        onShow={handleModalShow}
+        key={legalModalVisible ? 'modal-open' : 'modal-closed'}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
-                {editingPlatform ? getPlatformInfo(editingPlatform).name : ''} API Token
-              </Text>
+        <View style={styles.legalModalOverlay}>
+          <View style={[styles.legalModalContainer, { backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff' }]}>
+            {/* Modal Header */}
+            <View style={[styles.legalModalHeader, { borderBottomColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+              <View style={styles.legalModalTitleContainer}>
+                <MaterialIcons name="gavel" size={28} color="#4A90E2" />
+                <Text style={[styles.legalModalTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  Legal Terms & Privacy
+                </Text>
+              </View>
               <TouchableOpacity
-                onPress={() => setTokenModalVisible(false)}
-                style={styles.modalCloseButton}
+                onPress={closeLegalModal}
+                style={styles.legalModalClose}
               >
-                <MaterialIcons name="close" size={24} color={isDarkMode ? '#ffffff' : '#000000'} />
+                <MaterialIcons name="close" size={28} color={isDarkMode ? '#ffffff' : '#1a1a1a'} />
               </TouchableOpacity>
             </View>
-            
-            <View style={styles.modalContent}>
-              <Text style={[styles.modalDescription, { color: isDarkMode ? '#B0B0B0' : '#666' }]}>
-                Enter your {editingPlatform ? getPlatformInfo(editingPlatform).name : ''} API token to access private content and get better previews.
-              </Text>
-              
-              <TextInput
-                style={[styles.tokenInput, { 
-                  backgroundColor: isDarkMode ? '#2a2a2a' : '#f5f5f5',
-                  color: isDarkMode ? '#ffffff' : '#000000',
-                  borderColor: isDarkMode ? '#444' : '#ddd'
-                }]}
-                value={tempToken}
-                onChangeText={setTempToken}
-                placeholder="Paste your API token here..."
-                placeholderTextColor={isDarkMode ? '#888' : '#999'}
-                multiline={true}
-                numberOfLines={3}
-                secureTextEntry={true}
-              />
-              
-              <TouchableOpacity
-                style={[styles.helpButton, { backgroundColor: '#4A90E2' }]}
-                onPress={() => {
-                  const platformInfo = getPlatformInfo(editingPlatform);
-                  if (platformInfo.apiUrl) {
-                    // Open API documentation URL
-                    Alert.alert(
-                      'API Documentation',
-                      `Visit ${platformInfo.apiUrl} to learn how to get your API token.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { text: 'Open Link', onPress: () => {
-                          // In a real app, you'd use Linking.openURL(platformInfo.apiUrl)
-                          console.log('Open URL:', platformInfo.apiUrl);
-                        }}
-                      ]
-                    );
-                  }
-                }}
-              >
-                <MaterialIcons name="help" size={20} color="#ffffff" />
-                <Text style={styles.helpButtonText}>How to get API token?</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton, { backgroundColor: '#f5f5f5' }]}
-                onPress={() => setTokenModalVisible(false)}
-              >
-                <Text style={[styles.modalButtonText, { color: '#666' }]}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton, { backgroundColor: '#4A90E2' }]}
-                onPress={saveToken}
-              >
-                <Text style={[styles.modalButtonText, { color: '#ffffff' }]}>Save Token</Text>
-              </TouchableOpacity>
-            </View>
+
+            {/* Modal Content */}
+            <ScrollView 
+              ref={scrollViewRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1, padding: 20, paddingBottom: 60 }}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              alwaysBounceVertical={false}
+            >
+              {/* Disclaimer */}
+              <View style={styles.legalSection}>
+                <View style={styles.legalSectionHeader}>
+                  <MaterialIcons name="warning" size={24} color="#FF6B6B" />
+                  <Text style={[styles.legalSectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                    Important Disclaimer
+                  </Text>
+                </View>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  <Text style={{ fontWeight: '700' }}>SocialVault is an independent application</Text> and is not affiliated with, endorsed by, or sponsored by any of the social media platforms displayed within the app, including but not limited to Instagram, Facebook, YouTube, TikTok, Twitter/X, Reddit, Snapchat, or any other platforms.
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  All trademarks, service marks, logos, and brand names are the property of their respective owners. The use of these marks and logos is for identification and reference purposes only and does not imply any affiliation, endorsement, or sponsorship.
+                </Text>
+              </View>
+
+              {/* Privacy Policy */}
+              <View style={styles.legalSection}>
+                <View style={styles.legalSectionHeader}>
+                  <MaterialIcons name="privacy-tip" size={24} color="#4A90E2" />
+                  <Text style={[styles.legalSectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                    Privacy Policy
+                  </Text>
+                </View>
+                <Text style={[styles.legalSubtitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  Last Updated: {new Date().toLocaleDateString()}
+                </Text>
+                
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  1. Information We Collect
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  • <Text style={{ fontWeight: '600' }}>Account Information:</Text> Email address, name, profile picture, date of birth, and gender when you create an account.{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Content You Save:</Text> Links, titles, and collections that you create and store in SocialVault.{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Authentication Data:</Text> We use Firebase Authentication and Google Sign-In to manage your account securely.{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Usage Data:</Text> Information about how you use the app, including features accessed and interactions.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  2. How We Use Your Information
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  • To provide and maintain SocialVault services{'\n'}
+                  • To authenticate your account and keep it secure{'\n'}
+                  • To sync your collections across devices{'\n'}
+                  • To improve app functionality and user experience{'\n'}
+                  • To send important service-related notifications
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  3. Data Storage & Security
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  Your data is stored securely using <Text style={{ fontWeight: '600' }}>Firebase (Google Cloud Platform)</Text> and <Text style={{ fontWeight: '600' }}>Cloudinary</Text> for images. We implement industry-standard security measures including encrypted data transmission, secure authentication, and regular security audits.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  4. Third-Party Services
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  SocialVault uses the following third-party services:{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Firebase:</Text> Authentication, database, and analytics{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Google Sign-In:</Text> Optional authentication method{'\n'}
+                  • <Text style={{ fontWeight: '600' }}>Cloudinary:</Text> Secure image storage and delivery
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  5. Your Data Rights
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  You have the right to:{'\n'}
+                  • Access your personal data at any time{'\n'}
+                  • Update or correct your information{'\n'}
+                  • Delete your account and all associated data{'\n'}
+                  • Export your data (feature coming soon){'\n'}
+                  • Withdraw consent for data processing
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  6. Data Retention
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  We retain your data as long as your account is active. If you delete your account, all your personal data will be permanently removed from our servers within 30 days.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  7. Cookies & Analytics
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  We use Firebase Analytics to understand how users interact with SocialVault. This helps us improve the app and provide better features. Analytics data is anonymized and does not identify individual users. You can opt out of analytics in your device settings.
+                </Text>
+              </View>
+
+              {/* Terms of Service */}
+              <View style={styles.legalSection}>
+                <View style={styles.legalSectionHeader}>
+                  <MaterialIcons name="description" size={24} color="#6C5CE7" />
+                  <Text style={[styles.legalSectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                    Terms of Service
+                  </Text>
+                </View>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  1. Acceptance of Terms
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  By using SocialVault, you agree to these Terms of Service. If you do not agree, please do not use the app.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  2. Service Description
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  SocialVault is a personal organization tool that allows you to save, organize, and manage links to content from various social media platforms. <Text style={{ fontWeight: '600' }}>We do not host, own, or control the content linked from external platforms.</Text>
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  3. User Responsibilities
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  You agree to:{'\n'}
+                  • Provide accurate account information{'\n'}
+                  • Keep your password secure and confidential{'\n'}
+                  • Not upload or share illegal, harmful, or copyrighted content{'\n'}
+                  • Not use the app for any unlawful purposes{'\n'}
+                  • Respect the terms of service of the platforms you link content from{'\n'}
+                  • Not attempt to hack, breach, or exploit the app's security
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  4. Intellectual Property
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  <Text style={{ fontWeight: '600' }}>SocialVault respects intellectual property rights.</Text> Users may not upload, store, or share copyrighted material without proper authorization from the copyright holder. Any content you save must comply with applicable copyright laws and platform terms of service.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  5. Content Ownership
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  You retain ownership of the collections and organization structure you create in SocialVault. However, the actual content (videos, images, posts) linked from external platforms remains the property of those platforms and their original creators.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  6. Limitation of Liability
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  SocialVault is provided "as is" without warranties of any kind. We are not responsible for:{'\n'}
+                  • Broken links or unavailable content from external platforms{'\n'}
+                  • Changes or removal of content by third-party platforms{'\n'}
+                  • Quality or accuracy of previews and metadata{'\n'}
+                  • Loss of data due to circumstances beyond our control{'\n'}
+                  • Any damages resulting from use of the app
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  7. Service Modifications
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  We reserve the right to modify, suspend, or discontinue any part of SocialVault at any time with or without notice. We will make reasonable efforts to notify users of significant changes.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  8. Account Termination
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  We reserve the right to suspend or terminate accounts that violate these terms, engage in abusive behavior, or misuse the service.
+                </Text>
+
+                <Text style={[styles.legalHeading, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                  9. Changes to Terms
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  We may update these Terms of Service periodically. Continued use of the app after changes constitutes acceptance of the new terms.
+                </Text>
+              </View>
+
+              {/* Copyright Notice */}
+              <View style={styles.legalSection}>
+                <View style={styles.legalSectionHeader}>
+                  <MaterialIcons name="copyright" size={24} color="#00B894" />
+                  <Text style={[styles.legalSectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                    Copyright Notice
+                  </Text>
+                </View>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  © {new Date().getFullYear()} SocialVault. All rights reserved.
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  The SocialVault name, logo, and app design are proprietary. All social media logos and trademarks displayed in the app are property of their respective owners and are used for identification purposes only.
+                </Text>
+              </View>
+
+              {/* Contact Information */}
+              <View style={styles.legalSection}>
+                <View style={styles.legalSectionHeader}>
+                  <MaterialIcons name="contact-support" size={24} color="#FF8E53" />
+                  <Text style={[styles.legalSectionTitle, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
+                    Contact Us
+                  </Text>
+                </View>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)' }]}>
+                  If you have questions about these terms, your privacy, or need to report a concern, please contact us:
+                </Text>
+                <Text style={[styles.legalText, { color: isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(26, 26, 26, 0.8)', fontWeight: '600' }]}>
+                  Email: support@socialvault.app{'\n'}
+                  Response Time: Within 48 hours
+                </Text>
+              </View>
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+
           </View>
         </View>
       </Modal>
@@ -1132,179 +1110,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     letterSpacing: 0.1,
   },
-  
-  // API Tokens Styles
-  apiTokensContainer: {
-    padding: 16,
-  },
-  apiTokensDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  apiTokenItem: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  apiTokenHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  apiTokenInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  apiTokenIcon: {
-    marginRight: 12,
-  },
-  apiTokenDetails: {
-    flex: 1,
-  },
-  apiTokenName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  apiTokenDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  apiTokenActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tokenStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  tokenStatusText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  tokenButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  tokenButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  tokenPreview: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  tokenPreviewText: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
-  
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  tokenInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    marginBottom: 16,
-    textAlignVertical: 'top',
-  },
-  helpButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  helpButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    marginRight: 8,
-  },
-  saveButton: {
-    marginLeft: 8,
-  },
-  modalButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
   featureList: {
     marginTop: 8,
   },
@@ -1328,5 +1133,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: 0.1,
+  },
+  
+  // Legal Button Styles
+  legalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  legalButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 10,
+    marginRight: 10,
+    letterSpacing: 0.2,
+  },
+  
+  // Legal Modal Styles
+  legalModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  legalModalContainer: {
+    width: '100%',
+    height: '95%',
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    elevation: 10,
+  },
+  legalModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    flexShrink: 0,
+  },
+  legalModalTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legalModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginLeft: 12,
+    letterSpacing: -0.5,
+  },
+  legalModalClose: {
+    padding: 4,
+  },
+  legalSection: {
+    marginBottom: 32,
+  },
+  legalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  legalSectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginLeft: 12,
+    letterSpacing: -0.3,
+  },
+  legalSubtitle: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginBottom: 16,
+    opacity: 0.7,
+  },
+  legalHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  legalText: {
+    fontSize: 15,
+    lineHeight: 24,
+    marginBottom: 12,
+    letterSpacing: 0.2,
   },
 });

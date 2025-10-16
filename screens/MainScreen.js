@@ -1,14 +1,49 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Linking, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Linking, Animated, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Footer from '../components/Footer';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../ThemeContext';
 
+// Global image cache to persist across screen transitions
+let globalImageCache = {
+  loaded: false,
+  loading: false,
+  promise: null
+};
+
 export default function MainScreen() {
   const navigation = useNavigation();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const { isDarkMode } = useTheme();
+  const [imagesLoaded, setImagesLoaded] = React.useState(false);
+  const [isScreenFocused, setIsScreenFocused] = React.useState(false);
+  const [instagramLoaded, setInstagramLoaded] = React.useState(false);
+
+  // Preload images whenever screen becomes focused (non-blocking)
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      setIsScreenFocused(true);
+      // Start animation immediately, don't wait for preload
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+      
+      // Preload in background without blocking
+      preloadImages();
+    });
+
+    const unsubscribeBlur = navigation.addListener('blur', () => {
+      setIsScreenFocused(false);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeBlur();
+    };
+  }, [navigation]);
 
   React.useEffect(() => {
     // הסרת הכותרת העליונה ומניעת חזרה אחורה
@@ -17,13 +52,86 @@ export default function MainScreen() {
       gestureEnabled: false,
     });
 
-    // הפעלת אנימציית הופעה הדרגתית
+    // Start animation immediately on mount
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 1000,
+      duration: 800,
       useNativeDriver: true,
     }).start();
+
+    // Preload in background without blocking
+    preloadImages();
+    
+    // Also preload Instagram specifically for extra reliability (non-blocking, mobile only)
+    if (Platform.OS !== 'web') {
+      Image.prefetch(Image.resolveAssetSource(require('../assets/InstagramIcon.png')).uri)
+        .then(() => {
+          console.log('Instagram specifically preloaded');
+          setInstagramLoaded(true);
+        })
+        .catch((error) => {
+          console.warn('Instagram preload failed:', error);
+          setInstagramLoaded(true);
+        });
+    } else {
+      // On web, just mark as loaded
+      setInstagramLoaded(true);
+    }
   }, []);
+
+  // Preload all images to prevent loading delays with global caching (non-blocking)
+  const preloadImages = () => {
+    // If already loaded globally, just set state
+    if (globalImageCache.loaded) {
+      console.log('Images already cached globally');
+      setImagesLoaded(true);
+      return;
+    }
+
+    // If currently loading globally, don't start another
+    if (globalImageCache.loading) {
+      console.log('Images currently loading globally');
+      return;
+    }
+
+    // Start new global preload in background
+    console.log('Starting background image preload for MainScreen...');
+    globalImageCache.loading = true;
+    
+    // Skip image preloading on web - not needed and resolveAssetSource doesn't work
+    if (Platform.OS === 'web') {
+      console.log('Skipping image preload on web platform');
+      globalImageCache.loaded = true;
+      globalImageCache.loading = false;
+      setImagesLoaded(true);
+      return;
+    }
+    
+    const imagePromises = [
+      Image.prefetch(Image.resolveAssetSource(require('../assets/YoutubeIcon.png')).uri),
+      Image.prefetch(Image.resolveAssetSource(require('../assets/InstagramIcon.png')).uri),
+      Image.prefetch(Image.resolveAssetSource(require('../assets/FacebookIcon.png')).uri),
+      Image.prefetch(Image.resolveAssetSource(require('../assets/TikTokIcon.png')).uri),
+      Image.prefetch(Image.resolveAssetSource(require('../assets/XIcon.png')).uri),
+      Image.prefetch(Image.resolveAssetSource(require('../assets/SnapchatIcon.png')).uri),
+    ];
+    
+    globalImageCache.promise = Promise.all(imagePromises);
+    
+    // Don't await - let it run in background
+    globalImageCache.promise.then(() => {
+      console.log('All images preloaded successfully globally');
+      globalImageCache.loaded = true;
+      globalImageCache.loading = false;
+      setImagesLoaded(true);
+    }).catch((error) => {
+      console.warn('Some images failed to preload:', error);
+      globalImageCache.loading = false;
+      setImagesLoaded(true); // Continue anyway
+    });
+  };
+
+  // Removed blocking animation effect - animations now start immediately
 
   // פונקציה לטיפול בלחיצה על אייקון רשת חברתית
   const handleSocialPress = (url) => {
@@ -99,7 +207,7 @@ export default function MainScreen() {
                   style={[
                     styles.image,
                     // Individual icon size adjustments for visual consistency
-                    social.name === 'Instagram' && { width: 50, height: 50 }, // Instagram glyph - make it bigger
+                    social.name === 'Instagram' && { width: 48, height: 48 }, // Instagram glyph - standardized size
                     social.name === 'TikTok' && { width: 52, height: 52 }, // TikTok note - make it bigger
                     social.name === 'Facebook' && { width: 48, height: 48 }, // Facebook 'f' - make it bigger
                     social.name === 'Twitter' && { width: 40, height: 40 }, // Twitter 'X' - make it smaller
@@ -107,6 +215,24 @@ export default function MainScreen() {
                     social.name === 'YouTube' && { width: 70, height: 70 }, // YouTube play button - make it bigger to fill container
                   ]}
                   resizeMode="contain"
+                  onLoad={() => {
+                    // Ensure consistent rendering timing for all icons
+                    if (social.name === 'Instagram') {
+                      console.log('Instagram icon loaded successfully');
+                      setInstagramLoaded(true);
+                    }
+                  }}
+                  onError={(error) => {
+                    console.warn(`${social.name} icon failed to load:`, error);
+                    if (social.name === 'Instagram') {
+                      setInstagramLoaded(true); // Still mark as loaded to prevent blocking
+                    }
+                  }}
+                  onLoadStart={() => {
+                    if (social.name === 'Instagram') {
+                      console.log('Instagram icon started loading');
+                    }
+                  }}
                 />
               </View>
               {/* שם הרשת החברתית */}

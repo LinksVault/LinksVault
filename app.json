@@ -1,28 +1,39 @@
 {
   "expo": {
     "name": "SocialVault",
-    "slug": "SocialVault",
+    "slug": "socialvault-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "scheme": "socialvault",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.socialvault.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.yonatancarmeli.socialvault"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-build-properties"
+    ],
+    "owner": "yonatan_carmeli",
+    "extra": {
+      "eas": {
+        "projectId": "4e237e2e-cc18-4299-8f20-0e98a6c0ac5d"
+      }
     }
   }
 }

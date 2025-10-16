@@ -1,0 +1,113 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions for authentication and authorization
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isValidUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    
+    // Users collection - users can only read/write their own data
+    match /users/{userId} {
+      // Allow read if signed in and it's their own data
+      allow read: if isOwner(userId);
+      
+      // Allow create on signup
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      
+      // Allow update only to own profile
+      allow update: if isOwner(userId) && 
+                      // Prevent users from changing their userId
+                      request.resource.data.userId == resource.data.userId;
+      
+      // Don't allow delete (users should be deactivated, not deleted)
+      allow delete: if false;
+    }
+    
+    // Albums/Collections - users can only access their own albums
+    match /albums/{albumId} {
+      // Allow read if user owns the album
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Allow create if signed in and setting themselves as owner
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() > 0 &&
+                      request.resource.data.title.size() <= 100;
+      
+      // Allow update only to own albums
+      allow update: if isSignedIn() && 
+                      resource.data.userId == request.auth.uid &&
+                      // Prevent changing ownership
+                      request.resource.data.userId == resource.data.userId;
+      
+      // Allow delete only own albums
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Link previews cache - read by all authenticated, write by all authenticated
+    // This is cached data from public URLs, so it's safe to share
+    match /linkPreviews/{previewId} {
+      // Anyone authenticated can read cached previews
+      allow read: if isSignedIn();
+      
+      // Anyone authenticated can create/update previews (for caching)
+      allow create, update: if isSignedIn() &&
+                              request.resource.data.title is string &&
+                              request.resource.data.timestamp is string &&
+                              // Allow optional fields that might be present
+                              (!('description' in request.resource.data) || 
+                               request.resource.data.description is string) &&
+                              (!('image' in request.resource.data) || 
+                               request.resource.data.image is string || 
+                               request.resource.data.image == null) &&
+                              (!('siteName' in request.resource.data) || 
+                               request.resource.data.siteName is string) &&
+                              (!('source' in request.resource.data) || 
+                               request.resource.data.source is string) &&
+                              (!('url' in request.resource.data) || 
+                               request.resource.data.url is string) &&
+                              (!('isCustomTitle' in request.resource.data) || 
+                               request.resource.data.isCustomTitle is bool) &&
+                              (!('isCustom' in request.resource.data) || 
+                               request.resource.data.isCustom is bool);
+      
+      // Don't allow delete (let them expire naturally or via Cloud Function)
+      allow delete: if false;
+    }
+    
+    // Verification codes - only Cloud Functions should access these
+    match /verificationCodes/{codeId} {
+      // Only allow server-side (Cloud Functions) to read/write
+      allow read, write: if false;
+    }
+    
+    // Reset codes - only Cloud Functions should access these
+    match /resetCodes/{codeId} {
+      // Only allow server-side (Cloud Functions) to read/write
+      allow read, write: if false;
+    }
+    
+    // Rate limits - only Cloud Functions should access these
+    match /rateLimits/{limitId} {
+      // Only allow server-side (Cloud Functions) to read/write
+      allow read, write: if false;
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
