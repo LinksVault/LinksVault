@@ -1,39 +1,45 @@
 {
   "expo": {
-    "name": "SocialVault",
-    "slug": "socialvault-app",
+    "name": "LinksVault",
+    "slug": "linksvault-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/LinksVaultLogo.png",
     "userInterfaceStyle": "light",
-    "scheme": "socialvault",
+    "scheme": "linksvault",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/LinksVaultLogo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.socialvault.app"
+      "bundleIdentifier": "com.linksvault.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/LinksVaultLogo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yonatancarmeli.socialvault"
+      "package": "com.yonatancarmeli.linksvault",
+      "navigationBar": {
+        "backgroundColor": "#f5f5f5",
+        "barStyle": "dark-content"
+      }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/LinksVaultLogo.png"
     },
     "plugins": [
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-navigation-bar"
     ],
     "owner": "yonatan_carmeli",
     "extra": {
       "eas": {
-        "projectId": "4e237e2e-cc18-4299-8f20-0e98a6c0ac5d"
-      }
+        "projectId": "79ce5875-f5e8-4caa-87e9-cd3227db6551"
+      },
+      "previewServerUrl": "http://localhost:3000"
     }
   }
 }

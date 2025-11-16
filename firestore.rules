@@ -29,7 +29,8 @@ service cloud.firestore {
                       // Prevent users from changing their userId
                       request.resource.data.userId == resource.data.userId;
       
-      // Don't allow delete (users should be deactivated, not deleted)
+      // Don't allow client-side delete (users must use Cloud Function for GDPR compliance)
+      // Note: Admin SDK (used in deleteUserAccount Cloud Function) bypasses these rules
       allow delete: if false;
     }
     
@@ -52,6 +53,50 @@ service cloud.firestore {
                       request.resource.data.userId == resource.data.userId;
       
       // Allow delete only own albums
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Collections - users can only access their own collections
+    match /collections/{collectionId} {
+      // Allow read if user owns the collection
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Allow create if signed in and setting themselves as owner
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Allow update only to own collections
+      allow update: if isSignedIn() && 
+                      resource.data.userId == request.auth.uid &&
+                      // Prevent changing ownership
+                      request.resource.data.userId == resource.data.userId;
+      
+      // Allow delete only own collections
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+    
+    // General Links - users can only access their own general links
+    match /generalLinks/{linkId} {
+      // Allow read if user owns the link
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      // Allow create if signed in and setting themselves as owner
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.url is string &&
+                      request.resource.data.url.size() > 0 &&
+                      request.resource.data.title is string &&
+                      request.resource.data.title.size() > 0 &&
+                      request.resource.data.platform is string &&
+                      request.resource.data.createdAt is string;
+      
+      // Allow update only to own links (for editing)
+      allow update: if isSignedIn() && 
+                      resource.data.userId == request.auth.uid &&
+                      // Prevent changing ownership
+                      request.resource.data.userId == resource.data.userId;
+      
+      // Allow delete only own links
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
     

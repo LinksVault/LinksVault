@@ -12,15 +12,25 @@ import LogIn from './screens/LogIn';
 import Welcome from './screens/Welcome';
 import MainScreen from './screens/MainScreen';
 import Collections from './screens/Collections';
+import CreateCollection from './screens/CreateCollection';
+import SelectLinksScreen from './screens/SelectLinksScreen';
+import SelectThemeImageScreen from './screens/SelectThemeImageScreen';
 import CollectionFormat from './screens/CollectionFormat';
 import CollectionScreen from './screens/CollectionScreen';
 import ShareHandler from './screens/ShareHandler';
 import Profile from './screens/Profile';
 import MyLinks from './screens/MyLinks';
+import HelpSupport from './screens/Help&Support';
+import About from './screens/About';
+import Statistics from './screens/Statistics';
+import TermsAndConditions from './screens/TermsAndConditions';
+import PrivacyPolicy from './screens/PrivacyPolicy';
 import { auth } from './services/firebase/Config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ThemeProvider } from './ThemeContext';
 import ShareIntentListener from './utils/ShareIntentListener';
+import { DialogProvider } from './context/DialogContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 
 // יצירת ניווט מסוג Stack
@@ -136,49 +146,93 @@ export default function App() {
   if (initializing || isSwitchingAccounts) return null;
 
   return (
-    <ThemeProvider>
-      <NavigationContainer 
-        ref={navigationRef}
-        onStateChange={(state) => {
-          // Optional: Add navigation state logging for debugging
-          console.log('Navigation state changed:', state);
-        }}
-      >
-        <Stack.Navigator 
-          key={user && !isVerificationInProgress ? 'authenticated' : 'unauthenticated'}
-          initialRouteName={user && !isVerificationInProgress ? "MainScreen" : "Welcome"}
-        >
-          {!user || isVerificationInProgress ? (
-            // מסכי אימות - מוצגים כאשר המשתמש לא מחובר או כאשר תהליך האימות מתבצע
-            <>
-              <Stack.Screen name="Welcome" component={Welcome} />
-              <Stack.Screen name="SignUp" component={SignUp} initialParams={{ setIsVerificationInProgress }} />
-              <Stack.Screen name="LogIn" component={LogIn} />
-            </>
-          ) : (
-            // מסכי האפליקציה - מוצגים כאשר המשתמש מחובר
-            <>
-              <Stack.Screen name="MainScreen" component={MainScreen} />
-              <Stack.Screen name="Collections" component={Collections} options={{ headerShown: false }} />
-              <Stack.Screen name="CollectionFormat" component={CollectionFormat} options={{ headerShown: false }} />
-              <Stack.Screen name="ShareHandler" component={ShareHandler} options={{ headerShown: false }} />
-              <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
-              <Stack.Screen name="MyLinks" component={MyLinks} options={{ headerShown: false }} />
-              <Stack.Screen 
-                name="CollectionScreen" 
-                component={CollectionScreen}
-                options={{
-                  title: 'Image Collection',
-                  headerStyle: {
-                    backgroundColor: '#4a90e2',
-                  },
-                  headerTintColor: '#fff',
-                }}
-              />
-            </>
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <DialogProvider>
+          <NavigationContainer 
+            ref={navigationRef}
+            // Removed navigation state logging - was causing excessive console output
+          >
+          <Stack.Navigator 
+            key={user && !isVerificationInProgress ? 'authenticated' : 'unauthenticated'}
+            initialRouteName={user && !isVerificationInProgress ? "MainScreen" : "Welcome"}
+            screenOptions={{
+              headerShown: false,
+              animation: 'fade_from_bottom',
+              animationDuration: 180,
+              gestureEnabled: true,
+            }}
+          >
+            {!user || isVerificationInProgress ? (
+              // מסכי אימות - מוצגים כאשר המשתמש לא מחובר או כאשר תהליך האימות מתבצע
+              <>
+                <Stack.Screen name="Welcome" component={Welcome} />
+                <Stack.Screen name="SignUp" component={SignUp} initialParams={{ setIsVerificationInProgress }} />
+                <Stack.Screen name="LogIn" component={LogIn} />
+              </>
+            ) : (
+              // מסכי האפליקציה - מוצגים כאשר המשתמש מחובר
+              <>
+                <Stack.Screen name="MainScreen" component={MainScreen} />
+                <Stack.Screen 
+                  name="Collections" 
+                  component={Collections} 
+                  options={{ 
+                    headerShown: false
+                  }} 
+                />
+                <Stack.Screen name="CreateCollection" component={CreateCollection} options={{ headerShown: false }} />
+                <Stack.Screen name="SelectLinksScreen" component={SelectLinksScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="SelectThemeImageScreen" component={SelectThemeImageScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="CollectionFormat" component={CollectionFormat} options={{ headerShown: false }} />
+                <Stack.Screen name="ShareHandler" component={ShareHandler} options={{ headerShown: false }} />
+                <Stack.Screen name="Profile" component={Profile} options={{ headerShown: false }} />
+                <Stack.Screen name="MyLinks" component={MyLinks} options={{ headerShown: false }} />
+                <Stack.Screen name="HelpSupport" component={HelpSupport} options={{ headerShown: false }} />
+                <Stack.Screen name="About" component={About} options={{ headerShown: false }} />
+                <Stack.Screen name="Statistics" component={Statistics} options={{ headerShown: false }} />
+                <Stack.Screen 
+                  name="CollectionScreen" 
+                  component={CollectionScreen}
+                  options={{
+                    headerShown: true,
+                    title: 'Image Collection',
+                    headerStyle: {
+                      backgroundColor: '#4a90e2',
+                    },
+                    headerTintColor: '#fff',
+                  }}
+                />
+              </>
+            )}
+            <Stack.Screen
+              name="TermsAndConditions"
+              component={TermsAndConditions}
+              options={{
+                headerShown: true,
+                title: 'Terms & Conditions',
+                headerStyle: {
+                  backgroundColor: '#0F172A',
+                },
+                headerTintColor: '#fff',
+              }}
+            />
+            <Stack.Screen
+              name="PrivacyPolicy"
+              component={PrivacyPolicy}
+              options={{
+                headerShown: true,
+                title: 'Privacy Policy',
+                headerStyle: {
+                  backgroundColor: '#0F172A',
+                },
+                headerTintColor: '#fff',
+              }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </DialogProvider>
     </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

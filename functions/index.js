@@ -494,11 +494,11 @@ exports.sendVerificationEmail = functions
       const mailOptions = {
         from: functions.config().email?.user || process.env.EMAIL_USER,
         to: email,
-        subject: 'SocialVault - Email Verification',
+        subject: 'LinksVault - Email Verification',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">SocialVault</h1>
+              <h1 style="color: white; margin: 0; font-size: 28px;">LinksVault</h1>
               <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">Email Verification</p>
             </div>
             
@@ -506,7 +506,7 @@ exports.sendVerificationEmail = functions
               <h2 style="color: #333; margin: 0 0 20px 0;">Hello ${userName || 'there'}!</h2>
               
               <p style="color: #666; line-height: 1.6; margin-bottom: 25px;">
-                Thank you for signing up with SocialVault! To complete your registration, 
+                Thank you for signing up with LinksVault! To complete your registration, 
                 please use the verification code below:
               </p>
               
@@ -522,7 +522,7 @@ exports.sendVerificationEmail = functions
               <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
                 <p style="color: #999; font-size: 14px; margin: 0;">
                   Best regards,<br>
-                  The SocialVault Team
+                  The LinksVault Team
                 </p>
               </div>
             </div>
@@ -574,11 +574,11 @@ exports.sendPasswordResetEmail = functions
       const mailOptions = {
         from: functions.config().email?.user || process.env.EMAIL_USER,
         to: email,
-        subject: 'SocialVault - Password Reset',
+        subject: 'LinksVault - Password Reset',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">SocialVault</h1>
+              <h1 style="color: white; margin: 0; font-size: 28px;">LinksVault</h1>
               <p style="color: white; margin: 10px 0 0 0; font-size: 16px;">Password Reset</p>
             </div>
             
@@ -601,7 +601,7 @@ exports.sendPasswordResetEmail = functions
               <div style="border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px;">
                 <p style="color: #999; font-size: 14px; margin: 0;">
                   Best regards,<br>
-                  The SocialVault Team
+                  The LinksVault Team
                 </p>
               </div>
             </div>
@@ -759,6 +759,185 @@ exports.resetPassword = functions
     } catch (error) {
       console.error('Error in resetPassword function:', error);
       return res.status(500).json({ success: false, message: 'Failed to reset password' });
+    }
+  });
+
+/**
+ * Automatic cleanup function - runs daily to permanently delete collections
+ * that have been in trash for 30+ days
+ * Schedule: Every day at 2:00 AM
+ */
+exports.cleanupOldDeletedCollections = functions
+  .region('us-central1')
+  .pubsub.schedule('0 2 * * *')
+  .timeZone('UTC')
+  .onRun(async (context) => {
+    console.log('🗑️  Starting daily cleanup of old deleted collections...');
+    
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      console.log(`Looking for collections deleted before: ${thirtyDaysAgo.toISOString()}`);
+      
+      // Find collections that have been deleted for 30+ days
+      const oldDeletedCollectionsSnapshot = await db.collection('albums')
+        .where('isDeleted', '==', true)
+        .where('deletedAt', '<', thirtyDaysAgo.toISOString())
+        .get();
+      
+      console.log(`📊 Found ${oldDeletedCollectionsSnapshot.size} collections to permanently delete`);
+      
+      if (oldDeletedCollectionsSnapshot.empty) {
+        console.log('✅ No old deleted collections found. Cleanup complete.');
+        return null;
+      }
+      
+      const deletePromises = [];
+      const deletedCollectionIds = [];
+      
+      oldDeletedCollectionsSnapshot.forEach(doc => {
+        const collectionData = doc.data();
+        deletedCollectionIds.push({
+          id: doc.id,
+          title: collectionData.title,
+          deletedAt: collectionData.deletedAt,
+          userId: collectionData.userId
+        });
+        
+        console.log(`  🗑️  Deleting collection: "${collectionData.title}" (ID: ${doc.id})`);
+        
+        // Delete the collection document
+        deletePromises.push(doc.ref.delete());
+        
+        // Also clean up associated link previews if they exist
+        if (collectionData.listLink && Array.isArray(collectionData.listLink) && collectionData.listLink.length > 0) {
+          console.log(`    🔗 Cleaning up ${collectionData.listLink.length} link previews...`);
+          collectionData.listLink.forEach(link => {
+            try {
+              if (link && link.url) {
+                const normalizedUrl = link.url.trim();
+                const safeDocId = encodeURIComponent(normalizedUrl).replace(/[^a-zA-Z0-9]/g, '_');
+                deletePromises.push(
+                  db.collection('linkPreviews').doc(safeDocId).delete()
+                    .catch(err => console.log(`      ⚠️  Could not delete preview for ${link.url}: ${err.message}`))
+                );
+              }
+            } catch (error) {
+              console.log(`      ⚠️  Error processing preview for ${link?.url}: ${error.message}`);
+            }
+          });
+        }
+      });
+      
+      // Execute all deletions
+      await Promise.allSettled(deletePromises);
+      
+      console.log(`✅ Successfully cleaned up ${deletedCollectionIds.length} old collections`);
+      deletedCollectionIds.forEach(c => {
+        console.log(`   - "${c.title}" (deleted ${c.deletedAt})`);
+      });
+      
+      return null;
+      
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+      throw error;
+    }
+  });
+
+/**
+ * Manual cleanup function - can be called on-demand to clean up old deleted collections
+ * This can be triggered manually from the app or Firebase console
+ */
+exports.manualCleanupOldDeletedCollections = functions
+  .region('us-central1')
+  .https.onRequest(async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+
+    try {
+      console.log('🗑️  Starting manual cleanup of old deleted collections...');
+      
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      console.log(`Looking for collections deleted before: ${thirtyDaysAgo.toISOString()}`);
+      
+      // Find collections that have been deleted for 30+ days
+      const oldDeletedCollectionsSnapshot = await db.collection('albums')
+        .where('isDeleted', '==', true)
+        .where('deletedAt', '<', thirtyDaysAgo.toISOString())
+        .get();
+      
+      console.log(`📊 Found ${oldDeletedCollectionsSnapshot.size} collections to permanently delete`);
+      
+      if (oldDeletedCollectionsSnapshot.empty) {
+        console.log('✅ No old deleted collections found.');
+        return res.json({
+          success: true,
+          message: 'No collections to clean up',
+          deletedCount: 0,
+          deletedCollections: []
+        });
+      }
+      
+      const deletePromises = [];
+      const deletedCollectionIds = [];
+      
+      oldDeletedCollectionsSnapshot.forEach(doc => {
+        const collectionData = doc.data();
+        deletedCollectionIds.push({
+          id: doc.id,
+          title: collectionData.title,
+          deletedAt: collectionData.deletedAt,
+          userId: collectionData.userId
+        });
+        
+        // Delete the collection document
+        deletePromises.push(doc.ref.delete());
+        
+        // Also clean up associated link previews
+        if (collectionData.listLink && Array.isArray(collectionData.listLink) && collectionData.listLink.length > 0) {
+          collectionData.listLink.forEach(link => {
+            try {
+              if (link && link.url) {
+                const normalizedUrl = link.url.trim();
+                const safeDocId = encodeURIComponent(normalizedUrl).replace(/[^a-zA-Z0-9]/g, '_');
+                deletePromises.push(
+                  db.collection('linkPreviews').doc(safeDocId).delete()
+                    .catch(err => console.log(`Could not delete preview: ${err.message}`))
+                );
+              }
+            } catch (error) {
+              console.log(`Error processing preview: ${error.message}`);
+            }
+          });
+        }
+      });
+      
+      // Execute all deletions
+      await Promise.allSettled(deletePromises);
+      
+      console.log(`✅ Successfully cleaned up ${deletedCollectionIds.length} old collections`);
+      
+      return res.json({
+        success: true,
+        message: `Successfully cleaned up ${deletedCollectionIds.length} collections`,
+        deletedCount: deletedCollectionIds.length,
+        deletedCollections: deletedCollectionIds
+      });
+      
+    } catch (error) {
+      console.error('❌ Error during manual cleanup:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to clean up collections',
+        error: error.message
+      });
     }
   });
 

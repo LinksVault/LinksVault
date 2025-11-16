@@ -1,4 +1,4 @@
-# 🧪 Comprehensive Testing Checklist - SocialVault
+# 🧪 Comprehensive Testing Checklist - LinksVault
 
 **Goal:** Ensure 100% functionality before app store publication
 

@@ -1,4 +1,4 @@
-# Google Sign-In Setup Guide for SocialVault
+# Google Sign-In Setup Guide for LinksVault
 
 ## Current Status
 Your Google Sign-In is now configured to use `expo-auth-session`, which is the recommended approach for Expo apps.

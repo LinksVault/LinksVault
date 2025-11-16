@@ -127,7 +127,7 @@ exports.sendVerificationEmail = onRequest(async (req, res) => {
       const mailOptions = {
         from: "noreply.socialvault.app@gmail.com", // Replace with your actual email
         to: email,
-        subject: "Verify Your Social-Vault Account",
+        subject: "Verify Your LinksVault Account",
         html: "<h1>Hello " + userName + "!</h1><p>Your verification code is: <strong>" + verificationCode + "</strong></p><p>This code will expire in 10 minutes.</p>",
       };
 
@@ -334,7 +334,7 @@ exports.sendPasswordResetEmail = onRequest(async (req, res) => {
       const mailOptions = {
         from: "noreply.socialvault.app@gmail.com", // Replace with your actual email
         to: email,
-        subject: "Reset Your Social-Vault Password",
+        subject: "Reset Your LinksVault Password",
         html: "<h1>Hello " + finalUserName + "!</h1><p>Your password reset code is: <strong>" + resetCode + "</strong></p><p>This code will expire in 10 minutes.</p>",
       };
 
@@ -519,4 +519,578 @@ exports.cleanupOldDeletedCollections = onSchedule("0 2 * * *", async (event) => 
     console.error("Error during cleanup:", error);
     throw error;
   }
+});
+
+/**
+ * Cloud Function to delete user account and all associated data
+ * This is required for GDPR/CCPA compliance
+ */
+exports.deleteUserAccount = onRequest(async (req, res) => {
+  return cors(req, res, async () => {
+    try {
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        res.status(200).send();
+        return;
+      }
+
+      const { userId, idToken } = req.body;
+
+      console.log(`🗑️ Account deletion requested for userId: ${userId}`);
+
+      // Validate input
+      if (!userId || !idToken) {
+        res.status(400).json({
+          success: false,
+          message: "User ID and ID token are required",
+        });
+        return;
+      }
+
+      // Verify the ID token to ensure the user is authenticated
+      let decodedToken;
+      try {
+        decodedToken = await admin.auth().verifyIdToken(idToken);
+        if (decodedToken.uid !== userId) {
+          console.log(`❌ Token mismatch: ${decodedToken.uid} !== ${userId}`);
+          res.status(403).json({
+            success: false,
+            message: "Unauthorized: Token does not match user ID",
+          });
+          return;
+        }
+      } catch (tokenError) {
+        console.error("Error verifying token:", tokenError);
+        res.status(401).json({
+          success: false,
+          message: "Invalid or expired authentication token",
+        });
+        return;
+      }
+
+      const db = admin.firestore();
+      const storage = admin.storage();
+      const bucket = storage.bucket();
+
+      console.log(`✅ Token verified for user: ${userId}`);
+
+      // Track deletion progress
+      const deletionLog = {
+        albums: 0,
+        generalLinks: 0,
+        collections: 0,
+        linkPreviews: 0,
+        storageFiles: 0,
+        verificationCodes: 0,
+        resetCodes: 0,
+        rateLimits: 0,
+      };
+
+      // 1. Delete all user's albums/collections
+      console.log(`📦 Deleting albums for user: ${userId}`);
+      const albumsSnapshot = await db.collection('albums')
+        .where('userId', '==', userId)
+        .get();
+      
+      const albumDeletePromises = [];
+      albumsSnapshot.forEach(doc => {
+        albumDeletePromises.push(doc.ref.delete());
+        deletionLog.albums++;
+      });
+      await Promise.allSettled(albumDeletePromises);
+      console.log(`✅ Deleted ${deletionLog.albums} albums`);
+
+      // 2. Delete all user's general links
+      console.log(`🔗 Deleting general links for user: ${userId}`);
+      const linksSnapshot = await db.collection('generalLinks')
+        .where('userId', '==', userId)
+        .get();
+      
+      const linkDeletePromises = [];
+      linksSnapshot.forEach(doc => {
+        linkDeletePromises.push(doc.ref.delete());
+        deletionLog.generalLinks++;
+      });
+      await Promise.allSettled(linkDeletePromises);
+      console.log(`✅ Deleted ${deletionLog.generalLinks} general links`);
+
+      // 3. Delete all user's collections (if different from albums)
+      console.log(`📚 Deleting collections for user: ${userId}`);
+      const collectionsSnapshot = await db.collection('collections')
+        .where('userId', '==', userId)
+        .get();
+      
+      const collectionDeletePromises = [];
+      collectionsSnapshot.forEach(doc => {
+        collectionDeletePromises.push(doc.ref.delete());
+        deletionLog.collections++;
+      });
+      await Promise.allSettled(collectionDeletePromises);
+      console.log(`✅ Deleted ${deletionLog.collections} collections`);
+
+      // 4. Get user data to find email for cleanup
+      let userEmail = null;
+      try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+          userEmail = userDoc.data().email;
+        }
+      } catch (error) {
+        console.error("Error fetching user email:", error);
+      }
+
+      // 5. Delete verification codes for this user's email
+      if (userEmail) {
+        console.log(`🔑 Deleting verification codes for: ${userEmail}`);
+        const verificationCodesSnapshot = await db.collection('verificationCodes')
+          .where('email', '==', userEmail)
+          .get();
+        
+        const verificationDeletePromises = [];
+        verificationCodesSnapshot.forEach(doc => {
+          verificationDeletePromises.push(doc.ref.delete());
+          deletionLog.verificationCodes++;
+        });
+        await Promise.allSettled(verificationDeletePromises);
+        console.log(`✅ Deleted ${deletionLog.verificationCodes} verification codes`);
+
+        // 6. Delete reset codes for this user's email
+        console.log(`🔐 Deleting reset codes for: ${userEmail}`);
+        const resetCodesSnapshot = await db.collection('resetCodes')
+          .where('email', '==', userEmail)
+          .get();
+        
+        const resetDeletePromises = [];
+        resetCodesSnapshot.forEach(doc => {
+          resetDeletePromises.push(doc.ref.delete());
+          deletionLog.resetCodes++;
+        });
+        await Promise.allSettled(resetDeletePromises);
+        console.log(`✅ Deleted ${deletionLog.resetCodes} reset codes`);
+
+        // 7. Delete rate limits for this user's email
+        console.log(`⏱️ Deleting rate limits for: ${userEmail}`);
+        const rateLimitPatterns = ['verification', 'password_reset'];
+        const rateLimitDeletePromises = [];
+        for (const pattern of rateLimitPatterns) {
+          try {
+            const rateLimitDoc = db.collection('rateLimits').doc(`${pattern}_${userEmail}`);
+            rateLimitDeletePromises.push(rateLimitDoc.delete());
+            deletionLog.rateLimits++;
+          } catch (error) {
+            console.log(`Could not delete rate limit for ${pattern}:`, error.message);
+          }
+        }
+        await Promise.allSettled(rateLimitDeletePromises);
+        console.log(`✅ Deleted ${deletionLog.rateLimits} rate limit entries`);
+      }
+
+      // 8. Delete all user's storage files
+      console.log(`🖼️ Deleting storage files for user: ${userId}`);
+      try {
+        // Delete profile images
+        const [profileFiles] = await bucket.getFiles({
+          prefix: `users/${userId}/profile/`,
+        });
+        
+        const profileDeletePromises = profileFiles.map(file => {
+          deletionLog.storageFiles++;
+          return file.delete().catch(error => {
+            console.log(`Could not delete file ${file.name}:`, error.message);
+          });
+        });
+        await Promise.allSettled(profileDeletePromises);
+
+        // Delete album images
+        const [albumFiles] = await bucket.getFiles({
+          prefix: `albums/${userId}/`,
+        });
+        
+        const albumFileDeletePromises = albumFiles.map(file => {
+          deletionLog.storageFiles++;
+          return file.delete().catch(error => {
+            console.log(`Could not delete file ${file.name}:`, error.message);
+          });
+        });
+        await Promise.allSettled(albumFileDeletePromises);
+        
+        console.log(`✅ Deleted ${deletionLog.storageFiles} storage files`);
+      } catch (storageError) {
+        console.error("Error deleting storage files:", storageError);
+        // Continue with deletion even if storage cleanup fails
+      }
+
+      // 9. Delete user document from Firestore
+      console.log(`👤 Deleting user document: ${userId}`);
+      try {
+        await db.collection('users').doc(userId).delete();
+        console.log(`✅ Deleted user document`);
+      } catch (error) {
+        console.error("Error deleting user document:", error);
+      }
+
+      // 10. Delete Firebase Authentication account
+      console.log(`🔥 Deleting Firebase Auth account: ${userId}`);
+      try {
+        await admin.auth().deleteUser(userId);
+        console.log(`✅ Deleted Firebase Auth account`);
+      } catch (authError) {
+        console.error("Error deleting auth account:", authError);
+        res.status(500).json({
+          success: false,
+          message: "Failed to delete authentication account",
+        });
+        return;
+      }
+
+      console.log(`🎉 Account deletion completed successfully for ${userId}`);
+      console.log(`📊 Deletion summary:`, deletionLog);
+
+      res.status(200).json({
+        success: true,
+        message: "Account deleted successfully",
+        deletionSummary: deletionLog,
+      });
+    } catch (error) {
+      console.error("Error deleting user account:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete account. Please try again.",
+        error: error.message,
+      });
+    }
+  });
+});
+
+/**
+ * One-time cleanup function to remove orphaned user documents
+ * (Users in Firestore without corresponding Firebase Auth accounts)
+ * 
+ * This is a maintenance function to clean up users that were deleted
+ * before the proper account deletion system was implemented.
+ * 
+ * IMPORTANT: This should only be called by administrators
+ */
+exports.cleanupOrphanedUsers = onRequest(async (req, res) => {
+  return cors(req, res, async () => {
+    try {
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        res.status(200).send();
+        return;
+      }
+
+      // SECURITY: Require an admin secret key
+      const { adminSecret } = req.body;
+      
+      // You should set this as an environment variable in Firebase
+      // Run: firebase functions:config:set admin.secret="your-secret-key-here"
+      const expectedSecret = process.env.ADMIN_SECRET || "your-secure-secret-key-here";
+      
+      if (adminSecret !== expectedSecret) {
+        console.log('❌ Unauthorized cleanup attempt');
+        res.status(403).json({
+          success: false,
+          message: "Unauthorized: Invalid admin secret",
+        });
+        return;
+      }
+
+      console.log('🧹 Starting orphaned users cleanup...');
+
+      const db = admin.firestore();
+      const cleanupLog = {
+        totalUsersChecked: 0,
+        orphanedUsersFound: 0,
+        orphanedUsersDeleted: 0,
+        orphanedUserData: [],
+        errors: [],
+      };
+
+      // Get all user documents from Firestore
+      const usersSnapshot = await db.collection('users').get();
+      cleanupLog.totalUsersChecked = usersSnapshot.size;
+
+      console.log(`📊 Found ${usersSnapshot.size} user documents in Firestore`);
+
+      // Check each user document
+      for (const userDoc of usersSnapshot.docs) {
+        const userId = userDoc.id;
+        const userData = userDoc.data();
+
+        try {
+          // Try to get the Firebase Auth user
+          await admin.auth().getUser(userId);
+          // User exists in Auth, skip
+          console.log(`✅ User ${userId} has Auth account - OK`);
+        } catch (error) {
+          // User doesn't exist in Auth (orphaned)
+          if (error.code === 'auth/user-not-found') {
+            console.log(`🗑️ Found orphaned user: ${userId} (${userData.email || 'no email'})`);
+            
+            cleanupLog.orphanedUsersFound++;
+            cleanupLog.orphanedUserData.push({
+              userId: userId,
+              email: userData.email || 'unknown',
+              fullName: userData.fullName || 'unknown',
+              createdAt: userData.createdAt || 'unknown',
+            });
+
+            // Delete the orphaned user document
+            try {
+              await userDoc.ref.delete();
+              cleanupLog.orphanedUsersDeleted++;
+              console.log(`✅ Deleted orphaned user document: ${userId}`);
+              
+              // Also clean up their data (albums, links, etc.)
+              await cleanupOrphanedUserData(db, userId, userData.email);
+              
+            } catch (deleteError) {
+              console.error(`❌ Failed to delete user ${userId}:`, deleteError);
+              cleanupLog.errors.push({
+                userId: userId,
+                error: deleteError.message,
+              });
+            }
+          } else {
+            console.error(`❌ Error checking user ${userId}:`, error);
+            cleanupLog.errors.push({
+              userId: userId,
+              error: error.message,
+            });
+          }
+        }
+      }
+
+      console.log('🎉 Orphaned users cleanup completed');
+      console.log('📊 Summary:', cleanupLog);
+
+      res.status(200).json({
+        success: true,
+        message: "Orphaned users cleanup completed",
+        summary: cleanupLog,
+      });
+    } catch (error) {
+      console.error("Error during orphaned users cleanup:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to cleanup orphaned users",
+        error: error.message,
+      });
+    }
+  });
+});
+
+/**
+ * Helper function to clean up data for an orphaned user
+ */
+async function cleanupOrphanedUserData(db, userId, userEmail) {
+  console.log(`🧹 Cleaning up data for orphaned user: ${userId}`);
+  
+  const cleanupPromises = [];
+
+  // Delete albums
+  const albumsSnapshot = await db.collection('albums')
+    .where('userId', '==', userId)
+    .get();
+  
+  albumsSnapshot.forEach(doc => {
+    cleanupPromises.push(doc.ref.delete());
+  });
+  console.log(`  📦 Found ${albumsSnapshot.size} albums to delete`);
+
+  // Delete general links
+  const linksSnapshot = await db.collection('generalLinks')
+    .where('userId', '==', userId)
+    .get();
+  
+  linksSnapshot.forEach(doc => {
+    cleanupPromises.push(doc.ref.delete());
+  });
+  console.log(`  🔗 Found ${linksSnapshot.size} links to delete`);
+
+  // Delete collections
+  const collectionsSnapshot = await db.collection('collections')
+    .where('userId', '==', userId)
+    .get();
+  
+  collectionsSnapshot.forEach(doc => {
+    cleanupPromises.push(doc.ref.delete());
+  });
+  console.log(`  📚 Found ${collectionsSnapshot.size} collections to delete`);
+
+  // Delete verification/reset codes if email exists
+  if (userEmail) {
+    const verificationCodesSnapshot = await db.collection('verificationCodes')
+      .where('email', '==', userEmail)
+      .get();
+    
+    verificationCodesSnapshot.forEach(doc => {
+      cleanupPromises.push(doc.ref.delete());
+    });
+
+    const resetCodesSnapshot = await db.collection('resetCodes')
+      .where('email', '==', userEmail)
+      .get();
+    
+    resetCodesSnapshot.forEach(doc => {
+      cleanupPromises.push(doc.ref.delete());
+    });
+
+    // Delete rate limits
+    const rateLimitPatterns = ['verification', 'password_reset'];
+    for (const pattern of rateLimitPatterns) {
+      try {
+        cleanupPromises.push(
+          db.collection('rateLimits').doc(`${pattern}_${userEmail}`).delete()
+        );
+      } catch (error) {
+        // Ignore if doesn't exist
+      }
+    }
+  }
+
+  // Execute all deletions
+  await Promise.allSettled(cleanupPromises);
+  console.log(`  ✅ Cleaned up ${cleanupPromises.length} items for user ${userId}`);
+}
+
+/**
+ * Cleanup expired and used temporary data
+ * Removes old verification codes, reset codes, and rate limits
+ * 
+ * This should be run periodically to clean up accumulated temporary data
+ */
+exports.cleanupExpiredCodes = onRequest(async (req, res) => {
+  return cors(req, res, async () => {
+    try {
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        res.status(200).send();
+        return;
+      }
+
+      // SECURITY: Require an admin secret key
+      const { adminSecret } = req.body;
+      
+      const expectedSecret = process.env.ADMIN_SECRET || "your-secure-secret-key-here";
+      
+      if (adminSecret !== expectedSecret) {
+        console.log('❌ Unauthorized cleanup attempt');
+        res.status(403).json({
+          success: false,
+          message: "Unauthorized: Invalid admin secret",
+        });
+        return;
+      }
+
+      console.log('🧹 Starting cleanup of expired codes...');
+
+      const db = admin.firestore();
+      const now = admin.firestore.Timestamp.now();
+      
+      const cleanupLog = {
+        verificationCodes: {
+          expired: 0,
+          used: 0,
+        },
+        resetCodes: {
+          expired: 0,
+          used: 0,
+        },
+        rateLimits: {
+          old: 0,
+        },
+        errors: [],
+      };
+
+      // 1. Clean up expired and used verification codes
+      console.log('🔑 Cleaning up verification codes...');
+      
+      // Get used verification codes
+      const usedVerificationCodes = await db.collection('verificationCodes')
+        .where('used', '==', true)
+        .get();
+      
+      const verificationDeletePromises = [];
+      usedVerificationCodes.forEach(doc => {
+        verificationDeletePromises.push(doc.ref.delete());
+        cleanupLog.verificationCodes.used++;
+      });
+      
+      // Get expired verification codes
+      const expiredVerificationCodes = await db.collection('verificationCodes')
+        .where('expiresAt', '<', now)
+        .get();
+      
+      expiredVerificationCodes.forEach(doc => {
+        verificationDeletePromises.push(doc.ref.delete());
+        cleanupLog.verificationCodes.expired++;
+      });
+      
+      await Promise.allSettled(verificationDeletePromises);
+      console.log(`✅ Deleted ${cleanupLog.verificationCodes.used} used and ${cleanupLog.verificationCodes.expired} expired verification codes`);
+
+      // 2. Clean up expired and used reset codes
+      console.log('🔐 Cleaning up reset codes...');
+      
+      // Get used reset codes
+      const usedResetCodes = await db.collection('resetCodes')
+        .where('used', '==', true)
+        .get();
+      
+      const resetDeletePromises = [];
+      usedResetCodes.forEach(doc => {
+        resetDeletePromises.push(doc.ref.delete());
+        cleanupLog.resetCodes.used++;
+      });
+      
+      // Get expired reset codes
+      const expiredResetCodes = await db.collection('resetCodes')
+        .where('expiresAt', '<', now)
+        .get();
+      
+      expiredResetCodes.forEach(doc => {
+        resetDeletePromises.push(doc.ref.delete());
+        cleanupLog.resetCodes.expired++;
+      });
+      
+      await Promise.allSettled(resetDeletePromises);
+      console.log(`✅ Deleted ${cleanupLog.resetCodes.used} used and ${cleanupLog.resetCodes.expired} expired reset codes`);
+
+      // 3. Clean up old rate limits (older than 24 hours)
+      console.log('⏱️ Cleaning up old rate limits...');
+      
+      const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+      const rateLimitsSnapshot = await db.collection('rateLimits').get();
+      
+      const rateLimitDeletePromises = [];
+      rateLimitsSnapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.lastRequest && data.lastRequest < oneDayAgo) {
+          rateLimitDeletePromises.push(doc.ref.delete());
+          cleanupLog.rateLimits.old++;
+        }
+      });
+      
+      await Promise.allSettled(rateLimitDeletePromises);
+      console.log(`✅ Deleted ${cleanupLog.rateLimits.old} old rate limits`);
+
+      console.log('🎉 Expired codes cleanup completed');
+      console.log('📊 Summary:', cleanupLog);
+
+      res.status(200).json({
+        success: true,
+        message: "Expired codes cleanup completed",
+        summary: cleanupLog,
+      });
+    } catch (error) {
+      console.error("Error during expired codes cleanup:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to cleanup expired codes",
+        error: error.message,
+      });
+    }
+  });
 });

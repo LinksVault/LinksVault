@@ -1,14 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, Alert, Keyboard, Modal, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ImageBackground, KeyboardAvoidingView, Platform, ScrollView, Keyboard, Modal, ActivityIndicator, StatusBar } from 'react-native';
 import { createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '../services/firebase/Config';
 import { doc, setDoc } from 'firebase/firestore';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { sendVerificationEmail, verifyCode } from '../utils/emailService';
+import { showAppDialog } from '../context/DialogContext';
 
 
-const backgroundImage = require('../assets/social-bg.jpg');
+const backgroundImage = require('../assets/LinksVaultBackground.png');
 
 export default function SignUp({ navigation, route }) {
   const nav = useNavigation();
@@ -416,14 +417,21 @@ export default function SignUp({ navigation, route }) {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* תמונת רקע למסך */}
-      <ImageBackground 
-        source={backgroundImage}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <View style={styles.overlay}>
+    <>
+      <StatusBar 
+        barStyle="light-content" 
+        translucent={true} 
+        backgroundColor="transparent" 
+      />
+      <View style={{ flex: 1 }}>
+        {/* תמונת רקע למסך */}
+        <ImageBackground 
+          source={backgroundImage}
+          style={styles.background}
+          resizeMode="cover"
+          imageStyle={styles.backgroundImage}
+        >
+          <View style={styles.overlay}>
           {/* Back Arrow Button */}
           <TouchableOpacity 
             style={styles.backButton}
@@ -440,7 +448,7 @@ export default function SignUp({ navigation, route }) {
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
               <View style={styles.content}>
                 <Text style={styles.title}>Create Account</Text>
-                <Text style={styles.subtitle}>Join Social-Vault today</Text>
+                <Text style={styles.subtitle}>Join LinksVault today</Text>
 
                 {/* שדה קלט לשם מלא */}
                 <View style={styles.inputContainer}>
@@ -452,6 +460,7 @@ export default function SignUp({ navigation, route }) {
                     value={fullName}
                     onChangeText={setFullName}
                     autoCapitalize="words"
+                    maxLength={50}
                   />
                   {fullName ? (
                     <TouchableOpacity 
@@ -478,6 +487,7 @@ export default function SignUp({ navigation, route }) {
                     onChangeText={setEmail}
                     autoCapitalize="none"
                     autoComplete="email"
+                    maxLength={100}
                   />
                   {email ? (
                     <TouchableOpacity 
@@ -503,6 +513,7 @@ export default function SignUp({ navigation, route }) {
                     onChangeText={setPassword}
                     secureTextEntry={!isPasswordVisible}
                     autoCapitalize="none"
+                    maxLength={128}
                   />
                   {password ? (
                     <TouchableOpacity 
@@ -814,6 +825,7 @@ export default function SignUp({ navigation, route }) {
           </KeyboardAvoidingView>
         </View>
       </ImageBackground>
+      </View>
 
       {/* Verification Modal */}
       <Modal
@@ -916,11 +928,7 @@ export default function SignUp({ navigation, route }) {
                   await sendVerificationEmailWithCode(email, fullName);
                 } catch (error) {
                   console.error('Error resending code:', error);
-                  Alert.alert(
-                    'Error',
-                    'Failed to resend the code. Please try again.',
-                    [{ text: 'OK' }]
-                  );
+                  showAppDialog('Error', 'Failed to resend the code. Please try again.');
                 }
               }}
               disabled={isLoading}
@@ -932,7 +940,7 @@ export default function SignUp({ navigation, route }) {
           </View>
         </View>
       </Modal>
-    </View>
+    </>
   );
 }
 
@@ -943,9 +951,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(26, 35, 50, 0.3)',
+    paddingTop: StatusBar.currentHeight || 0,
   },
   container: {
     flex: 1,
@@ -962,24 +976,42 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#fff',
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 3,
+    marginBottom: 5,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 1,
   },
   subtitle: {
-    color: '#fff',
-    fontSize: 14,
-    marginBottom: 20,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    marginBottom: 25,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 0.5,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 20,
     marginBottom: 12,
     paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 3,
   },
   inputIcon: {
     marginRight: 10,
@@ -998,17 +1030,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#4A90E2',
-    padding: 12,
-    borderRadius: 20,
+    padding: 15,
+    borderRadius: 25,
     marginTop: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
   buttonText: {
     color: 'white',
@@ -1046,6 +1080,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     marginTop: 15,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 0.5,
   },
   dateContainer: {
     flexDirection: 'row',
@@ -1066,18 +1104,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#999',
-    minHeight: 40,
+    borderColor: 'rgba(153, 153, 153, 0.5)',
+    minHeight: 42,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   datePickerButtonSelected: {
     borderColor: '#4A90E2',
     borderWidth: 2,
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
+    backgroundColor: 'rgba(74, 144, 226, 0.15)',
+    shadowColor: '#4A90E2',
+    shadowOpacity: 0.2,
   },
   datePickerText: {
     color: '#999',
@@ -1170,18 +1218,28 @@ const styles = StyleSheet.create({
   // Gender button background styles
   genderButton: {
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    minWidth: 90,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    minWidth: 100,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   genderButtonSelected: {
     borderColor: '#4A90E2',
-    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+    backgroundColor: 'rgba(74, 144, 226, 0.3)',
     borderWidth: 2,
+    shadowColor: '#4A90E2',
+    shadowOpacity: 0.3,
   },
   genderText: {
     color: '#fff',
@@ -1316,7 +1374,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 30,
     margin: 20,
-    width: Dimensions.get('window').width - 40,
+    width: '90%',
     maxWidth: 400,
     shadowColor: '#000',
     shadowOffset: {

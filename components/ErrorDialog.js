@@ -1,9 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '../ThemeContext';
-
-const { width } = Dimensions.get('window');
+import { useTheme } from '../ThemeContext'];
 
 export default function ErrorDialog({ visible, error, onClose }) {
   const { isDarkMode } = useTheme();
@@ -163,7 +161,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   dialog: {
-    width: width - 40,
+    width: '90%',
     maxWidth: 400,
     borderRadius: 20,
     borderWidth: 1,

@@ -9,7 +9,8 @@ const functionUrls = {
   sendVerificationEmail: 'https://sendverificationemail-57eyovomeq-uc.a.run.app',
   sendPasswordResetEmail: 'https://sendpasswordresetemail-57eyovomeq-uc.a.run.app',
   verifyCode: 'https://verifycode-57eyovomeq-uc.a.run.app',
-  resetPassword: 'https://us-central1-social-vault.cloudfunctions.net/resetPassword'
+  resetPassword: 'https://us-central1-social-vault.cloudfunctions.net/resetPassword',
+  deleteUserAccount: 'https://us-central1-social-vault.cloudfunctions.net/deleteUserAccount'
 };
 
 /**
@@ -147,5 +148,50 @@ export const resetPasswordWithCode = async (userEmail, code, newPassword) => {
   } catch (error) {
     console.error('Failed to reset password:', error);
     return { success: false, message: 'Failed to reset password' };
+  }
+};
+
+/**
+ * Delete user account and all associated data via Firebase Cloud Functions
+ * This is required for GDPR/CCPA compliance
+ * @param {string} userId - The user's ID
+ * @param {string} idToken - The user's ID token for authentication
+ * @returns {Promise} - Account deletion result
+ */
+export const deleteUserAccount = async (userId, idToken) => {
+  try {
+    console.log('🗑️ Initiating account deletion for userId:', userId);
+    
+    // Call the Firebase Cloud Function via HTTP
+    const response = await fetch(functionUrls.deleteUserAccount, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: userId,
+        idToken: idToken
+      })
+    });
+    
+    const result = await response.json();
+    
+    console.log('Account deletion result:', result);
+    
+    if (response.ok && result.success) {
+      return {
+        success: true,
+        message: result.message || 'Account deleted successfully',
+        deletionSummary: result.deletionSummary
+      };
+    } else {
+      throw new Error(result.message || 'Failed to delete account');
+    }
+  } catch (error) {
+    console.error('Failed to delete account:', error);
+    return { 
+      success: false, 
+      message: error.message || 'Failed to delete account. Please try again.' 
+    };
   }
 };

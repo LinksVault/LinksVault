@@ -307,7 +307,7 @@ Courts are split on whether it's illegal
 **Better Approach:**
 ```javascript
 headers: {
-  'User-Agent': 'SocialVault/1.0 (Link Preview Bot; +https://your-site.com/bot)',
+  'User-Agent': 'LinksVault/1.0 (Link Preview Bot; +https://your-site.com/bot)',
   'Accept': 'text/html...',
   // Don't fake Referer
 }
@@ -387,7 +387,7 @@ const fetchingChain = [
 #### 1.3 Fix User Agent
 ```javascript
 headers: {
-  'User-Agent': 'SocialVault/1.0 (+https://socialvault.app/bot)',
+  'User-Agent': 'LinksVault/1.0 (+https://linksvault.app/bot)',
   // Be honest about who you are
 }
 ```
@@ -403,7 +403,7 @@ import * as robotsParser from 'robots-parser';
 async function canFetch(url) {
   const robots = await fetch(url + '/robots.txt');
   const parser = robotsParser(url, await robots.text());
-  return parser.isAllowed(url, 'SocialVault-Bot');
+  return parser.isAllowed(url, 'LinksVault-Bot');
 }
 ```
 

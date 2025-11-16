@@ -1,4 +1,4 @@
-# Scalability Analysis for SocialVault 📊
+# Scalability Analysis for LinksVault 📊
 
 ## Executive Summary
 

@@ -64,9 +64,9 @@ export const fetchYouTubePreview = async (url) => {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+        'User-Agent': 'LinksVault/1.0 (Link Preview Bot)'
       },
-      timeout: 10000
+      timeout: 15000 // Increased to 15 seconds for better reliability
     });
     
     console.log('YouTube oEmbed response status:', oembedResponse.status);

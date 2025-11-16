@@ -30,7 +30,19 @@ const startRateLimitTimer = () => {
 // Check if we can make a request to a domain
 const canMakeRequest = (url) => {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        return true; // Allow if we can't parse URL
+      }
+    }
+    
     let domain = 'default';
     
     // Find matching domain
@@ -72,6 +84,21 @@ const getSiteNameFromUrl = (url) => {
     
     return hostname.replace('www.', '');
   } catch (error) {
+    // Try to extract domain from invalid URL
+    const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+    if (domainMatch) {
+      const domain = domainMatch[1].toLowerCase();
+      
+      if (domain.includes('instagram.com')) return 'Instagram';
+      if (domain.includes('facebook.com')) return 'Facebook';
+      if (domain.includes('youtube.com') || domain.includes('youtu.be')) return 'YouTube';
+      if (domain.includes('tiktok.com')) return 'TikTok';
+      if (domain.includes('twitter.com') || domain.includes('x.com')) return 'X (Twitter)';
+      if (domain.includes('linkedin.com')) return 'LinkedIn';
+      if (domain.includes('reddit.com')) return 'Reddit';
+      
+      return domain.replace('www.', '');
+    }
     return 'Unknown site';
   }
 };
@@ -98,7 +125,19 @@ export const fetchEnhancedMetadata = async (url, options = {}) => {
     }
     
     // Try multiple LEGAL methods in order of reliability
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        hostname = 'unknown';
+      }
+    }
+    
     const isSocialMedia = hostname.includes('instagram.com') || hostname.includes('facebook.com');
     const isInstagram = hostname.includes('instagram.com');
     
@@ -167,7 +206,18 @@ const enhancePreviewData = (previewData, url) => {
     console.log('Input preview data:', previewData);
     console.log('URL:', url);
     
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        hostname = 'unknown';
+      }
+    }
     
     // Clean up and enhance the title
     let enhancedTitle = previewData.title || '';
@@ -178,6 +228,9 @@ const enhancePreviewData = (previewData, url) => {
         .replace(/\s*on Facebook:?\s*$/gi, '')
         .replace(/\s*on Twitter:?\s*$/gi, '')
         .replace(/\s*on YouTube:?\s*$/gi, '')
+        .replace(/\s*-\s*TikTok\s*(?:\|\s*Make Your Day)?\s*$/gi, '')
+        .replace(/\s*\|\s*TikTok\s*(?:\|\s*Make Your Day)?\s*$/gi, '')
+        .replace(/\s*TikTok\s*Make Your Day\s*$/gi, '')
         .replace(/\s*•\s*Instagram.*$/gi, '')
         .replace(/\s*•\s*Facebook.*$/gi, '')
         .replace(/\s*•\s*Twitter.*$/gi, '')
@@ -231,7 +284,7 @@ const fetchInstagramReelPreview = async (url) => {
         const response = await fetch(proxyUrl, {
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+            'User-Agent': 'LinksVault/1.0 (Link Preview Bot)'
           },
           timeout: 3000, // PERFORMANCE: Reduced from 8s to 3s for faster failures
         });
@@ -250,7 +303,7 @@ const fetchInstagramReelPreview = async (url) => {
         const response = await fetch(proxyUrl, {
           headers: {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+            'User-Agent': 'LinksVault/1.0 (Link Preview Bot)'
           },
           timeout: 3000, // PERFORMANCE: Reduced from 8s to 3s for faster failures
         });
@@ -268,7 +321,7 @@ const fetchInstagramReelPreview = async (url) => {
         const response = await fetch(proxyUrl, {
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+            'User-Agent': 'LinksVault/1.0 (Link Preview Bot)'
           },
           timeout: 3000, // PERFORMANCE: Reduced from 8s to 3s for faster failures
         });
@@ -482,7 +535,18 @@ const fetchWithYouTubeAPI = async (url) => {
 // Method 3: Legal Open Graph extraction for Instagram and Facebook
 const fetchWithOpenGraph = async (url) => {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        throw new Error('Invalid URL format');
+      }
+    }
     
     // Only use for Instagram and Facebook
     if (!hostname.includes('instagram.com') && !hostname.includes('facebook.com')) {
@@ -563,7 +627,7 @@ const fetchWithOpenGraph = async (url) => {
             method: 'GET',
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'SocialVault/1.0 (Link Preview Bot)'
+              'User-Agent': 'LinksVault/1.0 (Link Preview Bot)'
             },
             timeout: 3000, // PERFORMANCE: Reduced from 8s to 3s for faster failures // Reduced timeout
           });
@@ -675,7 +739,19 @@ const fetchWithOpenGraph = async (url) => {
 // Method 4: Smart fallback with better placeholders
 const fetchWithSmartFallback = async (url) => {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        hostname = 'unknown';
+      }
+    }
+    
     const siteName = getSiteNameFromUrl(url);
     
     console.log('Using smart fallback for:', url);
@@ -753,7 +829,18 @@ const fetchWithSmartFallback = async (url) => {
 // Method 4: Social media specific fallbacks with legal Open Graph extraction
 const fetchWithSocialMediaFallback = async (url) => {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch (urlError) {
+      // Try to extract domain from invalid URL
+      const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/\s]+)/);
+      if (domainMatch) {
+        hostname = domainMatch[1].toLowerCase();
+      } else {
+        hostname = 'unknown';
+      }
+    }
     
     // Try smart fallback for all platforms
     try {
@@ -767,7 +854,7 @@ const fetchWithSocialMediaFallback = async (url) => {
       console.log('Trying Open Graph meta tags for social media:', url);
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; SocialVault/1.0; +https://socialvault.app)',
+          'User-Agent': 'Mozilla/5.0 (compatible; LinksVault/1.0; +https://linksvault.app)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'gzip, deflate',

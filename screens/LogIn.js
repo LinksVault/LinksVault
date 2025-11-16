@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ImageBackground, KeyboardAvoidingView, Platform, Keyboard, Alert, Modal, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ImageBackground, KeyboardAvoidingView, Platform, Keyboard, Modal, ActivityIndicator, StatusBar } from 'react-native';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../services/firebase/Config';
+import { showAppDialog } from '../context/DialogContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { sendPasswordResetEmail, verifyCode, resetPasswordWithCode } from '../utils/emailService';
 
-const backgroundImage = require('../assets/social-bg.jpg');
+const backgroundImage = require('../assets/LinksVaultBackground.png');
 
 const LogIn = ({ navigation }) => {
   const nav = useNavigation();
@@ -67,6 +68,8 @@ const LogIn = ({ navigation }) => {
         errorMessage = 'Invalid email address.';
       } else if (error.code === 'auth/invalid-login-credentials' || error.code === 'auth/invalid-credential') {
         errorMessage = 'Invalid email or password. Please check your credentials and try again, or sign up if you don\'t have an account yet.';
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        errorMessage = 'This email is already registered with Google Sign-In. Please use "Continue with Google" or link email/password in your profile settings.';
       }
       
       setError(errorMessage);
@@ -174,14 +177,13 @@ const LogIn = ({ navigation }) => {
         // Close modal and show success message
         setShowNewPasswordModal(false);
         
-        Alert.alert(
+        showAppDialog(
           'Password Reset Successful! ✅',
           'Your password has been changed successfully. You can now log in with your new password.',
           [
             {
               text: 'OK',
               onPress: () => {
-                // Clear all states
                 setResetCode(['', '', '', '', '', '']);
                 setNewPassword('');
                 setConfirmPassword('');
@@ -214,7 +216,7 @@ const LogIn = ({ navigation }) => {
       const result = await sendPasswordResetEmail(resetEmail, null, null);
       
       if (result.success) {
-        Alert.alert('Code Resent', 'A new 6-digit code has been sent to your email.');
+        showAppDialog('Code Resent', 'A new 6-digit code has been sent to your email.');
         setResetCode(['', '', '', '', '', '']);
       } else {
         setError('Failed to resend code. Please try again.');
@@ -231,13 +233,21 @@ const LogIn = ({ navigation }) => {
 
 
   return (
-    // תמונת רקע למסך
-    <ImageBackground 
-      source={backgroundImage}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <View style={styles.overlay}>
+    <>
+      <StatusBar 
+        barStyle="light-content" 
+        translucent={true} 
+        backgroundColor="transparent" 
+      />
+      <View style={{ flex: 1 }}>
+        {/* תמונת רקע למסך */}
+        <ImageBackground 
+          source={backgroundImage}
+          style={styles.background}
+          resizeMode="cover"
+          imageStyle={styles.backgroundImage}
+        >
+          <View style={styles.overlay}>
         {/* Back Arrow Button */}
         <TouchableOpacity 
           style={styles.backButton}
@@ -266,6 +276,7 @@ const LogIn = ({ navigation }) => {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                maxLength={100}
               />
               {email ? (
                 <TouchableOpacity 
@@ -290,6 +301,7 @@ const LogIn = ({ navigation }) => {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!isPasswordVisible}
+                maxLength={128}
               />
               {password ? (
                 <TouchableOpacity 
@@ -365,6 +377,14 @@ const LogIn = ({ navigation }) => {
                 Don't have an account? <Text style={styles.signupLinkTextBold}>Sign up!</Text>
               </Text>
             </TouchableOpacity>
+
+            {/* Account linking info */}
+            <View style={styles.accountLinkingInfo}>
+              <MaterialIcons name="info" size={16} color="#4A90E2" />
+              <Text style={styles.accountLinkingText}>
+                Signed up with Google? Link email/password in your profile for more flexibility.
+              </Text>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -505,6 +525,7 @@ const LogIn = ({ navigation }) => {
                 onChangeText={setNewPassword}
                 secureTextEntry={!isNewPasswordVisible}
                 autoCapitalize="none"
+                maxLength={128}
               />
               <TouchableOpacity 
                 onPress={() => setIsNewPasswordVisible(!isNewPasswordVisible)}
@@ -529,6 +550,7 @@ const LogIn = ({ navigation }) => {
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!isConfirmPasswordVisible}
                 autoCapitalize="none"
+                maxLength={128}
               />
               <TouchableOpacity 
                 onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
@@ -576,7 +598,9 @@ const LogIn = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </ImageBackground>
+      </ImageBackground>
+      </View>
+    </>
   );
 };
 
@@ -587,9 +611,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(26, 35, 50, 0.3)',
+    paddingTop: StatusBar.currentHeight || 0,
   },
   container: {
     flex: 1,
@@ -605,20 +635,38 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 5,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 1,
   },
   subtitle: {
-    color: '#fff',
+    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 16,
     marginBottom: 30,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    letterSpacing: 0.5,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 25,
     marginBottom: 15,
     paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 3,
   },
   inputIcon: {
     marginRight: 10,
@@ -640,14 +688,16 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 25,
     marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
   buttonText: {
     color: 'white',
@@ -686,13 +736,16 @@ const styles = StyleSheet.create({
   forgotPasswordButton: {
     marginTop: 10,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.3)',
   },
   forgotPasswordButtonLoading: {
-    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(74, 144, 226, 0.15)',
+    borderWidth: 2,
     borderColor: '#4A90E2',
   },
   forgotPasswordText: {
@@ -744,7 +797,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 30,
     margin: 20,
-    width: Dimensions.get('window').width - 40,
+    width: '90%',
     maxWidth: 400,
     shadowColor: '#000',
     shadowOffset: {
@@ -873,6 +926,19 @@ const styles = StyleSheet.create({
   },
   eyeIconModal: {
     padding: 10,
+  },
+  accountLinkingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 15,
+    paddingHorizontal: 10,
+  },
+  accountLinkingText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 16,
   },
 
 });

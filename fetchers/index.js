@@ -3,4 +3,5 @@
 export { fetchYouTubePreview, extractYouTubeVideoId, testYouTubePreview } from './YouTubeFetcher.js';
 export { fetchInstagramPreview } from './InstagramFetcher.js';
 export { fetchFacebookPreview } from './FacebookFetcher.js';
+export { fetchTikTokPreview } from './TikTokFetcher.js';
 export { fetchLinkPreview, testPlatformFetcher } from './MainFetcher.js';

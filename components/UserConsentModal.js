@@ -6,11 +6,11 @@ import {
   TouchableOpacity, 
   StyleSheet, 
   ScrollView, 
-  Linking,
-  Alert
+  Linking
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { showAppDialog } from '../context/DialogContext';
 
 const UserConsentModal = ({ visible, onConsent, onDecline }) => {
   const [hasConsented, setHasConsented] = useState(false);
@@ -38,7 +38,7 @@ const UserConsentModal = ({ visible, onConsent, onDecline }) => {
       onConsent();
     } catch (error) {
       console.log('Error saving consent:', error);
-      Alert.alert('Error', 'Failed to save consent. Please try again.');
+      showAppDialog('Error', 'Failed to save consent. Please try again.');
     }
   };
 
@@ -87,7 +87,7 @@ const UserConsentModal = ({ visible, onConsent, onDecline }) => {
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             <Text style={styles.description}>
-              To provide you with beautiful link previews and thumbnails, SocialVault needs to collect some information from the websites you save.
+              To provide you with beautiful link previews and thumbnails, LinksVault needs to collect some information from the websites you save.
             </Text>
 
             <View style={styles.section}>
@@ -165,7 +165,7 @@ const UserConsentModal = ({ visible, onConsent, onDecline }) => {
           </View>
 
           <Text style={styles.footer}>
-            By agreeing, you consent to the collection and use of website metadata to enhance your SocialVault experience.
+            By agreeing, you consent to the collection and use of website metadata to enhance your LinksVault experience.
           </Text>
         </View>
       </View>

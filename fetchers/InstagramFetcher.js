@@ -124,7 +124,7 @@ const fetchWithInstagramGraphAPI = async (url, token) => {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'SocialVault/1.0 (Instagram Preview Bot)'
+          'User-Agent': 'LinksVault/1.0 (Instagram Preview Bot)'
         },
         timeout: 10000
       }
@@ -257,50 +257,8 @@ const extractInstagramTitle = async (url, html = null) => {
     }
   }
   
-  // Strategy 4: Try proxy services for title extraction
-  if (!title) {
-    console.log('Title Strategy 4: Proxy services');
-    const proxyServices = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-      `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-    ];
-    
-    for (const proxyUrl of proxyServices) {
-      try {
-        const response = await fetch(proxyUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-          },
-          timeout: 8000,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const htmlContent = data.contents || data.data || data;
-          
-          if (htmlContent && typeof htmlContent === 'string') {
-            const titlePatterns = [
-              '<meta[^>]*property=["\']og:title["\'][^>]*content=["\']([^"\']+)["\']',
-              '<meta[^>]*name=["\']twitter:title["\'][^>]*content=["\']([^"\']+)["\']',
-              '<title[^>]*>([^<]+)</title>'
-            ];
-            
-            title = extractMetaContent(htmlContent, titlePatterns);
-            if (title) {
-              console.log('Title found via proxy service:', title);
-              return cleanInstagramTitle(title);
-            }
-          }
-        }
-      } catch (error) {
-        console.log(`Proxy service failed for title: ${error.message}`);
-        continue;
-      }
-    }
-  }
+  // Strategy 4: Proxy services removed - they're unreliable and cause timeout spam
+  // Skip to URL pattern extraction for faster failure
   
   // Strategy 5: Extract from URL patterns
   if (!title) {
@@ -427,50 +385,8 @@ const extractInstagramThumbnail = async (url, html = null) => {
     }
   }
   
-  // Strategy 4: Try proxy services for thumbnail extraction
-  if (!thumbnail) {
-    console.log('Thumbnail Strategy 4: Proxy services');
-    const proxyServices = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-      `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
-    ];
-    
-    for (const proxyUrl of proxyServices) {
-      try {
-        const response = await fetch(proxyUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-          },
-          timeout: 8000,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const htmlContent = data.contents || data.data || data;
-          
-          if (htmlContent && typeof htmlContent === 'string') {
-            const imagePatterns = [
-              '<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\']',
-              '<meta[^>]*name=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']',
-              '<meta[^>]*property=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']'
-            ];
-            
-            thumbnail = extractMetaContent(htmlContent, imagePatterns);
-            if (thumbnail) {
-              console.log('Thumbnail found via proxy service:', thumbnail);
-              return thumbnail;
-            }
-          }
-        }
-      } catch (error) {
-        console.log(`Proxy service failed for thumbnail: ${error.message}`);
-        continue;
-      }
-    }
-  }
+  // Strategy 4: Proxy services removed - they're unreliable and cause timeout spam
+  // Skip to HTML search for thumbnails
   
   // Strategy 5: Try to find images in HTML content
   if (!thumbnail && html) {
@@ -592,18 +508,30 @@ export const fetchInstagramPreview = async (url, options = {}) => {
     let thumbnail = null;
     
     try {
-      title = await extractInstagramTitle(url);
-      console.log('Title extracted successfully:', title);
-    } catch (titleError) {
-      console.log('Title extraction failed:', titleError.message);
-    }
-    
-    try {
-      thumbnail = await extractInstagramThumbnail(url);
-      console.log('Thumbnail extracted successfully:', thumbnail);
-    } catch (thumbnailError) {
-      console.log('Thumbnail extraction failed:', thumbnailError.message);
-    }
+    // Add timeout wrapper for title extraction (reduced to 10s to fail fast)
+    const titlePromise = extractInstagramTitle(url);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Title extraction timeout')), 10000)
+    );
+    title = await Promise.race([titlePromise, timeoutPromise]);
+    console.log('Title extracted successfully:', title);
+  } catch (titleError) {
+    // Fail silently - we'll use URL-based fallback title
+    console.log('Title extraction failed (using fallback):', titleError.message);
+  }
+  
+  try {
+    // Add timeout wrapper for thumbnail extraction (reduced to 10s to fail fast)
+    const thumbnailPromise = extractInstagramThumbnail(url);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Thumbnail extraction timeout')), 10000)
+    );
+    thumbnail = await Promise.race([thumbnailPromise, timeoutPromise]);
+    console.log('Thumbnail extracted successfully:', thumbnail);
+  } catch (thumbnailError) {
+    // Fail silently - we'll use Instagram icon as fallback
+    console.log('Thumbnail extraction failed (using fallback):', thumbnailError.message);
+  }
     
     // Strategy 1: Try direct fetch with mobile user agent (even for Instagram - sometimes works)
     try {
@@ -624,7 +552,7 @@ export const fetchInstagramPreview = async (url, options = {}) => {
           'Cache-Control': 'max-age=0',
           'Referer': 'https://www.instagram.com/',
         },
-        timeout: 15000,
+        timeout: 20000, // Increased to 20 seconds for better reliability
       });
 
       if (response.ok) {
@@ -638,89 +566,8 @@ export const fetchInstagramPreview = async (url, options = {}) => {
       console.log('Direct fetch failed:', directError.message);
     }
     
-    // Strategy 2: Use proxy services (primary for social media, fallback for others)
-    if (!html) {
-      if (isSocialMediaSite(url)) {
-        console.log('Using proxy services for social media site');
-      }
-      const proxyServices = [
-        // More reliable proxy services
-        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-        `https://corsproxy.io/?${encodeURIComponent(url)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&format=json`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&format=text`,
-        // Alternative proxy services
-        `https://cors-anywhere.herokuapp.com/${url}`,
-        `https://thingproxy.freeboard.io/fetch/${url}`,
-        // New reliable proxy services
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&format=html`,
-        `https://corsproxy.io/?${encodeURIComponent(url)}&format=html`
-      ];
-      
-      for (const proxyUrl of proxyServices) {
-        try {
-          console.log(`Strategy 2: Trying proxy ${proxyUrl.split('?')[0]}`);
-
-          // Skip proxy if it's known to have SSL issues
-          if (proxyUrl.includes('thingproxy.freeboard.io')) {
-            console.log('Skipping thingproxy.freeboard.io due to known SSL certificate issues');
-            continue;
-          }
-
-          const response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json, text/html, */*',
-              'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1',
-              'Accept-Language': 'en-US,en;q=0.9',
-              'Accept-Encoding': 'gzip, deflate, br',
-              'DNT': '1',
-              'Connection': 'keep-alive',
-              'Upgrade-Insecure-Requests': '1'
-            },
-            timeout: 10000, // Increased timeout for better reliability
-          });
-
-          if (response.ok) {
-            let data;
-            const contentType = response.headers.get('content-type') || '';
-
-            try {
-              if (contentType.includes('application/json')) {
-                data = await response.json();
-                // Handle different response formats from different proxies
-                html = data.contents || data.data || data.response || data.result || data;
-              } else {
-                html = await response.text();
-              }
-
-              source = 'proxy';
-              if (html && typeof html === 'string' && html.length > 500) { // Ensure we got meaningful content
-                console.log(`Proxy fetch successful via ${proxyUrl.split('?')[0]}, HTML length: ${html.length}`);
-                break;
-              } else {
-                console.log(`Proxy returned empty or too short content (${html?.length || 0} chars)`);
-              }
-            } catch (parseError) {
-              console.log('Failed to parse proxy response:', parseError.message);
-            }
-          } else {
-            console.log(`Proxy ${proxyUrl.split('?')[0]} returned status: ${response.status}`);
-          }
-        } catch (error) {
-          // Check for specific SSL certificate errors
-          if (error.message.includes('ERR_CERT_DATE_INVALID') ||
-              error.message.includes('ERR_CERT_AUTHORITY_INVALID') ||
-              error.message.includes('ERR_SSL_PROTOCOL_ERROR')) {
-            console.log(`Proxy SSL error (skipping): ${error.message}`);
-          } else {
-            console.log(`Proxy failed: ${error.message}`);
-          }
-          continue;
-        }
-      }
-    }
+    // Strategy 2: Skip proxy services entirely - they cause timeout errors and JSON parse failures
+    // For Instagram, we rely on oEmbed API (Strategy 3) and HTML extraction from direct fetch
     
     // Strategy 3: Try Instagram's public oEmbed endpoint (if direct and proxy failed)
     if (!html && url.includes('instagram.com')) {

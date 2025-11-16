@@ -1,5 +1,5 @@
 import { auth, db } from '../services/firebase/Config';
-import { EmailAuthProvider, linkWithCredential, GoogleAuthProvider, fetchSignInMethodsForEmail } from 'firebase/auth';
+import { EmailAuthProvider, linkWithCredential, GoogleAuthProvider, fetchSignInMethodsForEmail, updatePassword, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 /**
@@ -55,6 +55,55 @@ export const linkEmailPassword = async (email, password) => {
       errorMessage = 'This email is already in use by another account';
     } else if (error.code === 'auth/provider-already-linked') {
       errorMessage = 'Email/password is already linked';
+    }
+    
+    return { success: false, message: errorMessage };
+  }
+};
+
+/**
+ * Update password for an existing email/password account
+ * @param {string} password - New password
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export const updateEmailPassword = async (password) => {
+  try {
+    const user = auth.currentUser;
+    
+    if (!user) {
+      return { success: false, message: 'No user is currently signed in' };
+    }
+    
+    // For Google-authenticated users, we can't directly update password
+    // Instead, we'll create a new credential and link it
+    // This will replace the old password if it exists
+    const credential = EmailAuthProvider.credential(user.email, password);
+    
+    try {
+      // Try to link the new credential
+      await linkWithCredential(user, credential);
+      return { success: true, message: 'Password updated successfully!' };
+    } catch (linkError) {
+      if (linkError.code === 'auth/provider-already-linked') {
+        // The provider is already linked, which means we can't update the password
+        // from a Google-authenticated session. We need to inform the user about this limitation.
+        return { 
+          success: false, 
+          message: 'Password update requires email/password sign-in. Please sign out, then sign in using your email and current password, and try updating your password again.' 
+        };
+      }
+      throw linkError;
+    }
+  } catch (error) {
+    console.error('Error updating password:', error);
+    
+    let errorMessage = 'Failed to update password';
+    if (error.code === 'auth/weak-password') {
+      errorMessage = 'Password should be at least 6 characters';
+    } else if (error.code === 'auth/requires-recent-login') {
+      errorMessage = 'Please sign in again before updating your password';
+    } else if (error.code === 'auth/provider-already-linked') {
+      errorMessage = 'Password update requires email/password sign-in. Please sign out, then sign in using your email and current password, and try updating your password again.';
     }
     
     return { success: false, message: errorMessage };

@@ -1,4 +1,4 @@
-package com.yonatancarmeli.socialvault
+package com.yonatancarmeli.linksvault
 
 import android.os.Build
 import android.os.Bundle

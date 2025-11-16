@@ -107,7 +107,7 @@ export const fetchFacebookPreview = async (url) => {
             'Sec-Fetch-Site': 'none',
             'Cache-Control': 'max-age=0',
           },
-          timeout: 15000,
+          timeout: 20000, // Increased to 20 seconds for better reliability
         });
 
         if (response.ok) {
@@ -152,7 +152,7 @@ export const fetchFacebookPreview = async (url) => {
               'Accept': 'application/json, text/html, */*',
               'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15'
             },
-            timeout: 8000, // Reduced timeout for faster fallback
+            timeout: 15000, // Increased to 15 seconds for better reliability
           });
 
           if (response.ok) {
