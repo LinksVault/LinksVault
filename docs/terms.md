@@ -1,6 +1,6 @@
 # Terms & Conditions — LinksVault
 
-Last updated: [REPLACE WITH DATE]
+Last updated: November 17, 2025
 
 Welcome to LinksVault (“we”, “us”, or the “Service”). By creating an account, accessing, or using LinksVault, you agree to these Terms & Conditions (“Terms”) and our Privacy Policy. If you do not agree, do not use the Service.
 
@@ -56,6 +56,6 @@ We may update these Terms from time to time. We will post the updated Terms with
 These Terms are governed by applicable local law unless otherwise required. Disputes will be resolved first through informal negotiation and, if unresolved, through arbitration or courts of competent jurisdiction, as permitted by law.
 
 ## 18. Contact
-Questions about these Terms: [REPLACE WITH SUPPORT EMAIL]
+Questions about these Terms: help.linksvault.app@gmail.com
 
 

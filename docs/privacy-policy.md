@@ -1,6 +1,6 @@
 # Privacy Policy — LinksVault
 
-Last updated: [REPLACE WITH DATE]
+Last updated: November 17, 2025
 
 This Privacy Policy explains how LinksVault (“we”, “us”, or the “App”) collects, uses, discloses, and protects your information when you use the LinksVault mobile application.
 
@@ -73,7 +73,7 @@ We may update this Privacy Policy from time to time. The “Last updated” date
 ## 12. Contact
 If you have questions or requests related to privacy, please contact us at:
 
-Email: [REPLACE WITH SUPPORT EMAIL]
+Email: help.linksvault.app@gmail.com
 
 —
 
