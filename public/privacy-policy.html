@@ -24,6 +24,7 @@
             color: #2c3e50;
             border-bottom: 3px solid #3498db;
             padding-bottom: 10px;
+            text-align: center;
         }
         h2 {
             color: #34495e;
@@ -31,22 +32,29 @@
             border-left: 4px solid #3498db;
             padding-left: 15px;
         }
-        h3 {
-            color: #7f8c8d;
-            margin-top: 25px;
-        }
         .last-updated {
             background: #e8f4fd;
             padding: 15px;
             border-radius: 8px;
             margin-bottom: 30px;
             border-left: 4px solid #3498db;
+            text-align: center;
+        }
+        .intro {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            font-size: 1.05em;
         }
         ul {
             padding-left: 20px;
         }
         li {
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+        }
+        p {
+            margin-bottom: 15px;
         }
         .contact-info {
             background: #f8f9fa;
@@ -76,178 +84,113 @@
 <body>
     <div class="container">
         <div class="logo">
-            <h1>🔒 LinksVault</h1>
+            <h1>🔒 LinksVault Privacy Policy</h1>
         </div>
         
         <div class="last-updated">
-            <strong>Last updated:</strong> December 2024
+            <strong>Last updated:</strong> <script>document.write(new Date().toLocaleDateString())</script>
         </div>
 
-        <h2>Introduction</h2>
-        <p>LinksVault ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.</p>
+        <div class="intro">
+            <p><strong>Your privacy matters to us.</strong> This policy outlines what information we collect, how we use it, and the choices you have regarding your data when using LinksVault.</p>
+        </div>
 
-        <h2>Information We Collect</h2>
-        
-        <h3>Link Metadata</h3>
+        <h2>1. Overview</h2>
+        <p>This Privacy Policy explains how LinksVault ("we", "us", "our") collects, uses, discloses, and protects your information when you use our mobile or web applications, services, and associated websites (collectively, the "Service").</p>
+
+        <h2>Affiliations & Trademarks</h2>
+        <p>LinksVault is an independent application and is not affiliated with, endorsed by, or sponsored by any of the social media platforms displayed within the app, including but not limited to Instagram, Facebook, YouTube, TikTok, Twitter/X, Reddit, Snapchat, or any other platforms.</p>
+        <p>All trademarks, service marks, logos, and brand names are the property of their respective owners. The use of these marks and logos is for identification and reference purposes only and does not imply any affiliation, endorsement, or sponsorship.</p>
+
+        <h2>2. Information We Collect</h2>
         <ul>
-            <li><strong>Website titles and descriptions</strong> from links you save</li>
-            <li><strong>Thumbnail images</strong> for visual previews</li>
-            <li><strong>Basic website information</strong> (site names, URLs)</li>
-            <li><strong>Timestamps</strong> of when links were saved</li>
+            <li><strong>Account Information:</strong> name, email address, authentication tokens, profile photo (if you choose to provide one).</li>
+            <li><strong>Content You Add:</strong> links, tags, folders, notes, and metadata you store in the Service.</li>
+            <li><strong>Usage Data:</strong> actions taken within the app, device type, app version, log files, crash reports, pages visited, and referral sources.</li>
+            <li><strong>Device & Technical Data:</strong> IP address, operating system, device identifiers, and diagnostic data collected via third-party analytics tools.</li>
+            <li><strong>Optional Data:</strong> preferences, feedback, survey responses, and support correspondence.</li>
+        </ul>
+
+        <h2>3. Metadata Fetching</h2>
+        <p>To provide link previews (title, description, thumbnail), LinksVault retrieves publicly available metadata from URLs using standard protocols such as oEmbed and Open Graph.</p>
+        <ul>
+            <li>We do not access private data, bypass authentication mechanisms, or store external content.</li>
+            <li>This metadata retrieval is performed using industry-standard methods and respects website policies.</li>
         </ul>
 
         <div class="highlight">
-            <h3>What We Do NOT Collect</h3>
+            <h3>Industry Standard Practice</h3>
+            <p>This metadata retrieval uses the same methods as WhatsApp, Discord, Slack, Telegram, and all major messaging and productivity apps. We use:</p>
             <ul>
-                <li>Personal information (names, emails, phone numbers)</li>
-                <li>Your social media login credentials</li>
-                <li>Private messages or content</li>
-                <li>Browsing history outside of saved links</li>
-                <li>Location data</li>
-                <li>Device identifiers</li>
+                <li><strong>oEmbed APIs:</strong> Official APIs provided by YouTube, Instagram, TikTok, and other platforms</li>
+                <li><strong>Open Graph Protocol:</strong> Standard metadata tags that websites provide specifically for link previews</li>
+                <li><strong>Public Metadata Only:</strong> We only access publicly available information</li>
             </ul>
         </div>
 
-        <h2>How We Collect Information</h2>
-        
-        <h3>Legal Methods</h3>
-        <ol>
-            <li><strong>Official APIs</strong>: We use legal APIs like microlink.io for metadata</li>
-            <li><strong>Public HTML</strong>: We access publicly available website information</li>
-            <li><strong>Rate Limiting</strong>: We respect website rate limits and robots.txt files</li>
-            <li><strong>Public Data Only</strong>: We only collect publicly available website metadata</li>
-        </ol>
-
-        <h3>Data Sources</h3>
+        <h2>4. How We Use Information</h2>
         <ul>
-            <li><strong>Direct website access</strong> (with proper headers and rate limiting)</li>
-            <li><strong>Third-party APIs</strong> (microlink.io, YouTube oEmbed)</li>
-            <li><strong>Public metadata</strong> (Open Graph, Twitter Cards)</li>
-            <li><strong>User-provided information</strong> (custom titles, descriptions)</li>
+            <li>Provide, maintain, and improve the Service.</li>
+            <li>Personalize your experience, such as remembering preferences and recommended content.</li>
+            <li>Process transactions, including subscriptions and in-app purchases.</li>
+            <li>Communicate with you about updates, security alerts, and support.</li>
+            <li>Monitor performance, diagnose technical issues, and conduct analytics.</li>
+            <li>Ensure compliance with legal obligations and enforce our Terms & Conditions.</li>
         </ul>
 
-        <h2>How We Use Your Information</h2>
-        
-        <h3>Primary Purpose</h3>
+        <h2>5. Legal Bases for Processing</h2>
+        <p>If you reside in the European Economic Area (EEA), United Kingdom (UK), or Switzerland, we process Personal Data under these legal bases:</p>
         <ul>
-            <li><strong>Link Previews</strong>: Display thumbnails and descriptions for saved links</li>
-            <li><strong>Organization</strong>: Help you organize and find your saved content</li>
-            <li><strong>User Experience</strong>: Provide a beautiful, visual interface</li>
+            <li><strong>Contract:</strong> To deliver the Service you request.</li>
+            <li><strong>Legitimate Interests:</strong> To maintain and improve the Service, prevent fraud, and protect users.</li>
+            <li><strong>Consent:</strong> For optional features, marketing communications, and analytics where required.</li>
+            <li><strong>Legal Obligation:</strong> To meet regulatory requirements and respond to lawful requests.</li>
         </ul>
 
-        <h3>Data Storage</h3>
+        <h2>6. How We Share Information</h2>
         <ul>
-            <li><strong>Local Storage</strong>: Most data is stored on your device</li>
-            <li><strong>Firebase Cache</strong>: Limited metadata caching for performance</li>
-            <li><strong>No External Sharing</strong>: We never sell or share your data</li>
+            <li><strong>Service Providers:</strong> trusted vendors who perform services on our behalf (hosting, analytics, payments, customer support).</li>
+            <li><strong>Third-Party Integrations:</strong> only when you connect optional services (e.g., cloud storage, social platforms).</li>
+            <li><strong>Legal Compliance:</strong> to comply with applicable law, regulation, legal process, or governmental request.</li>
+            <li><strong>Business Transfers:</strong> in connection with a merger, acquisition, or sale of assets, subject to continued protection of your data.</li>
+        </ul>
+        <p><strong>We do not sell your personal information.</strong></p>
+
+        <h2>7. Data Retention</h2>
+        <p>We retain information for as long as your account remains active or as needed to provide the Service. We may also retain certain information to comply with legal obligations, resolve disputes, and enforce agreements.</p>
+        <p>If you delete your account, we will delete or anonymize your personal information within a reasonable timeframe, subject to legal requirements.</p>
+
+        <h2>8. Your Rights & Choices</h2>
+        <ul>
+            <li>Depending on your jurisdiction, you may have rights to access, correct, update, delete, or restrict processing of your personal information.</li>
+            <li>You can update account information in-app or contact us to exercise data rights.</li>
+            <li>For marketing communications, you can unsubscribe via the links in emails or adjust notification settings in the app.</li>
+            <li>If we rely on consent to process data, you can withdraw consent at any time without affecting the lawfulness of processing carried out before withdrawal.</li>
         </ul>
 
-        <h2>Data Security</h2>
-        
-        <h3>Protection Measures</h3>
-        <ul>
-            <li><strong>Encrypted Storage</strong>: Data is encrypted when stored</li>
-            <li><strong>Secure APIs</strong>: All external requests use HTTPS</li>
-            <li><strong>Access Control</strong>: Only you can access your saved data</li>
-            <li><strong>Regular Updates</strong>: Security improvements are implemented regularly</li>
-        </ul>
+        <h2>9. International Data Transfers</h2>
+        <p>We may store and process information in countries outside of your own. We take appropriate safeguards to protect your information, such as standard contractual clauses or other lawful transfer mechanisms.</p>
 
-        <h3>Data Retention</h3>
-        <ul>
-            <li><strong>Active Use</strong>: Data is kept while you use the app</li>
-            <li><strong>User Control</strong>: You can delete your data anytime</li>
-            <li><strong>Account Deletion</strong>: All data is removed when you delete your account</li>
-        </ul>
+        <h2>10. Children's Privacy</h2>
+        <p>The Service is not directed to children under 13 (or the minimum age in your jurisdiction). We do not knowingly collect personal information from children. If we learn we have collected such information, we will delete it promptly.</p>
 
-        <h2>Your Rights</h2>
-        
-        <h3>Data Control</h3>
-        <ul>
-            <li><strong>Automatic Collection</strong>: Link previews are fetched automatically for better user experience</li>
-            <li><strong>Public Data Only</strong>: We only collect publicly available website metadata</li>
-            <li><strong>No Personal Information</strong>: We never collect your personal data</li>
-        </ul>
+        <h2>11. Security</h2>
+        <p>We implement technical and organizational measures designed to protect your information against unauthorized access, alteration, disclosure, or destruction.</p>
+        <p>Despite our efforts, no security measures are perfect and we cannot guarantee absolute security.</p>
 
-        <h3>Your Data Rights</h3>
-        <ul>
-            <li><strong>View</strong>: See what data we have about you</li>
-            <li><strong>Delete</strong>: Remove specific links or all data</li>
-            <li><strong>Export</strong>: Download your data if needed</li>
-            <li><strong>Correction</strong>: Update or fix incorrect information</li>
-        </ul>
+        <h2>12. Third-Party Links & Services</h2>
+        <p>The Service may contain links to third-party websites or services. We are not responsible for the privacy practices of those third parties. We encourage you to review their policies.</p>
 
-        <h2>Third-Party Services</h2>
-        
-        <h3>Services We Use</h3>
-        <ul>
-            <li><strong>Firebase</strong>: For app functionality and data storage</li>
-            <li><strong>Microlink.io</strong>: For website metadata extraction</li>
-            <li><strong>YouTube APIs</strong>: For video information</li>
-        </ul>
+        <h2>13. Updates to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. We will notify you of material changes by updating the "Last updated" date and, where appropriate, providing additional notice.</p>
+        <p>Your continued use of the Service after changes become effective constitutes acceptance of the updated policy.</p>
 
-        <h3>Third-Party Privacy</h3>
-        <ul>
-            <li>Each service has its own privacy policy</li>
-            <li>We only share necessary data with these services</li>
-            <li>We review third-party privacy practices regularly</li>
-        </ul>
-
-        <h2>Legal Basis</h2>
-        
-        <h3>Compliance</h3>
-        <ul>
-            <li><strong>GDPR</strong>: We comply with European data protection laws</li>
-            <li><strong>CCPA</strong>: We respect California privacy rights</li>
-            <li><strong>Local Laws</strong>: We follow applicable privacy regulations</li>
-        </ul>
-
-        <h3>Legal Grounds</h3>
-        <ul>
-            <li><strong>Legitimate Interest</strong>: Improving app functionality with link previews</li>
-            <li><strong>Contract</strong>: Providing the service you requested</li>
-            <li><strong>Public Data</strong>: Collecting only publicly available website metadata</li>
-        </ul>
-
-        <h2>Children's Privacy</h2>
-        <ul>
-            <li>We do not knowingly collect data from children under 13</li>
-            <li>If you are under 13, please do not use our app</li>
-            <li>Parents can contact us to remove any child's data</li>
-        </ul>
-
-        <h2>Changes to This Policy</h2>
-        <ul>
-            <li>We may update this policy occasionally</li>
-            <li>Significant changes will be notified via the app</li>
-            <li>Continued use means acceptance of updated policy</li>
-            <li>Previous versions are available upon request</li>
-        </ul>
-
+        <h2>14. Contact</h2>
         <div class="contact-info">
-            <h2>Contact Information</h2>
-            
-            <h3>Questions or Concerns?</h3>
-            <ul>
-                <li><strong>Email</strong>: privacy@socialvault.com</li>
-                <li><strong>In-App</strong>: Use the feedback option in settings</li>
-                <li><strong>Response Time</strong>: We aim to respond within 48 hours</li>
-            </ul>
-
-            <h3>Data Protection Officer</h3>
-            <ul>
-                <li><strong>Email</strong>: dpo@socialvault.com</li>
-                <li><strong>Address</strong>: [Your Company Address]</li>
-            </ul>
+            <p>For questions, requests, or complaints about this Privacy Policy or our data practices, contact us at:</p>
+            <p><strong>Email:</strong> help.linksvault.app@gmail.com</p>
+            <p>If you have any concerns about how we handle your information, please reach out to us.</p>
         </div>
-
-        <h2>Your Consent</h2>
-        <p>By using LinksVault, you agree to:</p>
-        <ol>
-            <li><strong>Data Collection</strong>: Allow us to collect publicly available link metadata</li>
-            <li><strong>This Policy</strong>: Accept the terms of this privacy policy</li>
-            <li><strong>Updates</strong>: Receive notifications about policy changes</li>
-            <li><strong>Contact</strong>: Be contacted regarding your data if needed</li>
-        </ol>
 
         <hr style="margin: 40px 0; border: none; border-top: 2px solid #ecf0f1;">
         
