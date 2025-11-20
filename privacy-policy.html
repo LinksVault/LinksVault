@@ -12,41 +12,41 @@
             margin: 0 auto;
             padding: 20px;
             color: #333;
-            background-color: #0F172A;
+            background-color: #ffffff;
         }
         .container {
-            background: #0F172A;
+            background: #ffffff;
             padding: 40px;
             border-radius: 12px;
         }
         h1 {
-            color: #FFFFFF;
+            color: #333;
             font-size: 28px;
             font-weight: 700;
             text-align: center;
             margin-bottom: 8px;
         }
         .last-updated {
-            color: rgba(255,255,255,0.7);
+            color: #666;
             font-size: 12px;
             text-align: center;
             margin-bottom: 24px;
         }
         .intro {
-            color: rgba(255,255,255,0.85);
+            color: #333;
             font-size: 16px;
             line-height: 24px;
             margin-bottom: 24px;
         }
         h2 {
-            color: #38BDF8;
+            color: #333;
             font-size: 18px;
             font-weight: 600;
             margin-top: 24px;
             margin-bottom: 8px;
         }
         p {
-            color: rgba(255,255,255,0.85);
+            color: #333;
             font-size: 14px;
             line-height: 22px;
             margin-bottom: 10px;
@@ -55,129 +55,137 @@
             margin-bottom: 24px;
         }
         .contact-info {
-            background: rgba(56, 189, 248, 0.1);
+            background: #f5f5f5;
             padding: 20px;
             border-radius: 8px;
             margin-top: 30px;
-            border-left: 4px solid #38BDF8;
+            border-left: 4px solid #333;
+        }
+        ul {
+            margin-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Privacy Policy</h1>
+        <h1>Privacy Policy — LinksVault</h1>
         <div class="last-updated">
-            <strong>Last updated:</strong> <script>document.write(new Date().toLocaleDateString())</script>
+            <strong>Last updated:</strong> November 17, 2025
         </div>
 
         <div class="intro">
-            <p><strong>Your privacy matters to us.</strong> This policy outlines what information we collect, how we use it, and the choices you have regarding your data when using LinksVault.</p>
+            <p>This Privacy Policy explains how LinksVault ("we", "us", or the "App") collects, uses, discloses, and protects your information when you use the LinksVault mobile application.</p>
+            <p>If you do not agree with this policy, please do not use the App. By using the App, you consent to the practices described here.</p>
         </div>
 
         <div class="section">
-            <h2>1. Overview</h2>
-            <p>This Privacy Policy explains how LinksVault ("we", "us", "our") collects, uses, discloses, and protects your information when you use our mobile or web applications, services, and associated websites (collectively, the "Service").</p>
+            <h2>1. Data We Collect</h2>
+            <p>We collect the following categories of data to provide core functionality and operate the service:</p>
+            <p><strong>Account Information:</strong> email address (via Firebase Authentication). If provided or synced, we may also store your display name and profile photo.</p>
+            <p><strong>Demographic Information you provide:</strong> name, age, gender (if you choose to provide these in your profile or they are part of your account data).</p>
+            <p><strong>User Content:</strong> links you save, collections you create, titles, descriptions, thumbnails and other related metadata (including timestamps).</p>
+            <p><strong>Device/Technical Data:</strong> device information, IP address, app version, diagnostics/crash logs, and analytics events (only if Firebase Crashlytics/Analytics are enabled in the app).</p>
+            <p>We do not collect payment information within the App unless explicitly stated in an additional section or update to this policy.</p>
         </div>
 
         <div class="section">
-            <h2>Affiliations & Trademarks</h2>
-            <p>LinksVault is an independent application and is not affiliated with, endorsed by, or sponsored by any of the social media platforms displayed within the app, including but not limited to Instagram, Facebook, YouTube, TikTok, Twitter/X, Reddit, Snapchat, or any other platforms.</p>
-            <p>All trademarks, service marks, logos, and brand names are the property of their respective owners. The use of these marks and logos is for identification and reference purposes only and does not imply any affiliation, endorsement, or sponsorship.</p>
+            <h2>2. How We Use Your Data</h2>
+            <p>We use your data to:</p>
+            <ul>
+                <li>Provide core features: save, sync, and display your links and collections across devices.</li>
+                <li>Maintain and improve reliability, performance, and security of the service.</li>
+                <li>Provide customer support and troubleshoot issues.</li>
+                <li>Prevent, detect, and address abuse, spam, or violations of our terms.</li>
+                <li>Improve the product and user experience (only if Analytics is enabled).</li>
+            </ul>
+            <p>We do not sell personal data.</p>
         </div>
 
         <div class="section">
-            <h2>2. Information We Collect</h2>
-            <p>• Account Information: name, email address, authentication tokens, profile photo (if you choose to provide one).</p>
-            <p>• Content You Add: links, tags, folders, notes, and metadata you store in the Service.</p>
-            <p>• Usage Data: actions taken within the app, device type, app version, log files, crash reports, pages visited, and referral sources.</p>
-            <p>• Device & Technical Data: IP address, operating system, device identifiers, and diagnostic data collected via third-party analytics tools.</p>
-            <p>• Optional Data: preferences, feedback, survey responses, and support correspondence.</p>
+            <h2>3. Legal Bases (where applicable)</h2>
+            <p>Where required by law (e.g., GDPR), we process personal data based on:</p>
+            <ul>
+                <li>Performance of a contract (to provide the App's core functionality).</li>
+                <li>Legitimate interests (to maintain, secure, and improve the service, and to prevent abuse).</li>
+                <li>Consent (for optional analytics or if you provide demographic information).</li>
+            </ul>
         </div>
 
         <div class="section">
-            <h2>3. Metadata Fetching</h2>
+            <h2>4. Metadata Fetching</h2>
             <p>To provide link previews (title, description, thumbnail), LinksVault retrieves publicly available metadata from URLs using standard protocols such as oEmbed and Open Graph.</p>
             <p>We do not access private data, bypass authentication mechanisms, or store external content.</p>
             <p>This metadata retrieval is performed using industry-standard methods and respects website policies.</p>
         </div>
 
         <div class="section">
-            <h2>4. How We Use Information</h2>
-            <p>• Provide, maintain, and improve the Service.</p>
-            <p>• Personalize your experience, such as remembering preferences and recommended content.</p>
-            <p>• Process transactions, including subscriptions and in-app purchases.</p>
-            <p>• Communicate with you about updates, security alerts, and support.</p>
-            <p>• Monitor performance, diagnose technical issues, and conduct analytics.</p>
-            <p>• Ensure compliance with legal obligations and enforce our Terms & Conditions.</p>
+            <h2>5. Storage, Processing, and Security</h2>
+            <p>We use Google Firebase as our backend service provider (Firestore, Authentication, and—if applicable—Storage, Crashlytics, Analytics). Your data may be processed and stored by Firebase under their security and privacy controls.</p>
+            <p>All data is transmitted over encrypted (HTTPS) connections.</p>
+            <p>We apply Firebase Security Rules and other safeguards to help protect your data.</p>
         </div>
 
         <div class="section">
-            <h2>5. Legal Bases for Processing</h2>
-            <p>If you reside in the European Economic Area (EEA), United Kingdom (UK), or Switzerland, we process Personal Data under these legal bases:</p>
-            <p>• Contract: To deliver the Service you request.</p>
-            <p>• Legitimate Interests: To maintain and improve the Service, prevent fraud, and protect users.</p>
-            <p>• Consent: For optional features, marketing communications, and analytics where required.</p>
-            <p>• Legal Obligation: To meet regulatory requirements and respond to lawful requests.</p>
+            <h2>6. Access to Your Data</h2>
+            <p>Your links and collections are private to your account by default.</p>
+            <p>Certain stored data may be accessible to the developer strictly for technical support, debugging, security, or abuse prevention purposes. Access is limited and logged where feasible.</p>
+            <p>We do not share personal data with third parties beyond our service providers necessary to operate the App (e.g., Firebase/Google).</p>
         </div>
 
         <div class="section">
-            <h2>6. How We Share Information</h2>
-            <p>• Service Providers: trusted vendors who perform services on our behalf (hosting, analytics, payments, customer support).</p>
-            <p>• Third-Party Integrations: only when you connect optional services (e.g., cloud storage, social platforms).</p>
-            <p>• Legal Compliance: to comply with applicable law, regulation, legal process, or governmental request.</p>
-            <p>• Business Transfers: in connection with a merger, acquisition, or sale of assets, subject to continued protection of your data.</p>
-            <p>We do not sell your personal information.</p>
+            <h2>7. Data Sharing and Third Parties</h2>
+            <p>We rely on the following service provider(s):</p>
+            <p><strong>Google Firebase (Google LLC)</strong> — authentication, database, storage, crash reporting, and optional analytics. Data may be processed and stored by Firebase subject to their terms, security, and privacy commitments.</p>
+            <p>We do not sell personal data. We may disclose information if required by law, to respond to legal requests, or to protect our rights, users, or the public.</p>
         </div>
 
         <div class="section">
-            <h2>7. Data Retention</h2>
-            <p>We retain information for as long as your account remains active or as needed to provide the Service. We may also retain certain information to comply with legal obligations, resolve disputes, and enforce agreements.</p>
-            <p>If you delete your account, we will delete or anonymize your personal information within a reasonable timeframe, subject to legal requirements.</p>
+            <h2>8. Data Retention</h2>
+            <p>Account and User Content data (links, collections, related metadata) are retained for as long as your account remains active.</p>
+            <p>Diagnostic/crash/analytics data (if enabled) may be retained by Firebase for operational and product improvement purposes according to their retention policies.</p>
+            <p>If you delete content or your account, we will delete or anonymize associated data within a reasonable period, subject to legal obligations, dispute resolution, or technical limitations of backups.</p>
         </div>
 
         <div class="section">
-            <h2>8. Your Rights & Choices</h2>
-            <p>Depending on your jurisdiction, you may have rights to access, correct, update, delete, or restrict processing of your personal information.</p>
-            <p>You can update account information in-app or contact us to exercise data rights.</p>
-            <p>For marketing communications, you can unsubscribe via the links in emails or adjust notification settings in the app.</p>
-            <p>If we rely on consent to process data, you can withdraw consent at any time without affecting the lawfulness of processing carried out before withdrawal.</p>
-        </div>
-
-        <div class="section">
-            <h2>9. International Data Transfers</h2>
-            <p>We may store and process information in countries outside of your own. We take appropriate safeguards to protect your information, such as standard contractual clauses or other lawful transfer mechanisms.</p>
+            <h2>9. Your Choices and Rights</h2>
+            <p>You can add, edit, or delete your links and collections within the App.</p>
+            <p>You can request deletion of your account; account deletion removes associated personal data from our active systems within a reasonable period (subject to legal/backup constraints).</p>
+            <p>Where applicable by law, you may have rights to access, correct, port, or restrict processing of your personal data. Contact us to exercise these rights.</p>
         </div>
 
         <div class="section">
             <h2>10. Children's Privacy</h2>
-            <p>The Service is not directed to children under 13 (or the minimum age in your jurisdiction). We do not knowingly collect personal information from children. If we learn we have collected such information, we will delete it promptly.</p>
+            <p>The App is not directed to children under 13 (or as defined by local law). We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, please contact us and we will take appropriate action.</p>
         </div>
 
         <div class="section">
-            <h2>11. Security</h2>
-            <p>We implement technical and organizational measures designed to protect your information against unauthorized access, alteration, disclosure, or destruction.</p>
-            <p>Despite our efforts, no security measures are perfect and we cannot guarantee absolute security.</p>
+            <h2>11. International Data Transfers</h2>
+            <p>Your data may be processed and stored on servers outside your country of residence (including in the United States) by our service providers (e.g., Firebase). We rely on appropriate safeguards for such transfers as required by applicable law.</p>
         </div>
 
         <div class="section">
-            <h2>12. Third-Party Links & Services</h2>
-            <p>The Service may contain links to third-party websites or services. We are not responsible for the privacy practices of those third parties. We encourage you to review their policies.</p>
+            <h2>12. Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time. The "Last updated" date indicates the latest revisions. If changes are material, we may provide additional notice in the App or via other means.</p>
         </div>
 
         <div class="section">
-            <h2>13. Updates to This Policy</h2>
-            <p>We may update this Privacy Policy from time to time. We will notify you of material changes by updating the "Last updated" date and, where appropriate, providing additional notice.</p>
-            <p>Your continued use of the Service after changes become effective constitutes acceptance of the updated policy.</p>
-        </div>
-
-        <div class="section">
-            <h2>14. Contact</h2>
+            <h2>13. Contact</h2>
             <div class="contact-info">
-                <p>For questions, requests, or complaints about this Privacy Policy or our data practices, contact us at help.linksvault.app@gmail.com.</p>
+                <p>If you have questions or requests related to privacy, please contact us at:</p>
+                <p><strong>Email:</strong> help.linksvault.app@gmail.com</p>
             </div>
         </div>
 
-        <p style="margin-top: 30px;">If you have any concerns about how we handle your information, please reach out to help.linksvault.app@gmail.com.</p>
+        <div class="section" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd;">
+            <p style="font-size: 12px; color: #666; font-style: italic;">—</p>
+            <p style="font-size: 12px; color: #666; margin-top: 20px;"><strong>Notes for Google Play "Data safety" disclosure (informational)</strong></p>
+            <p style="font-size: 12px; color: #666;"><strong>Data collected:</strong> email (Auth), user content (links/collections/metadata), optional demographics (name/age/gender if provided), device/crash/analytics (if enabled).</p>
+            <p style="font-size: 12px; color: #666;"><strong>Purposes:</strong> app functionality (core features), account management, security/abuse prevention, developer communications/support, analytics (optional).</p>
+            <p style="font-size: 12px; color: #666;"><strong>Data handling:</strong> data is encrypted in transit; user data can be deleted upon request; developer has limited access for support/security only; no sale of personal data.</p>
+        </div>
     </div>
 </body>
 </html>
