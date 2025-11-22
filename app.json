@@ -4,7 +4,7 @@
     "slug": "linksvault-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/Optimized_LinksVaultLogo8.png",
+    "icon": "./assets/LinksVaultLogo8.png",
     "userInterfaceStyle": "light",
     "scheme": "linksvault",
     "splash": {

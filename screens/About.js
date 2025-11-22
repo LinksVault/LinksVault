@@ -106,7 +106,7 @@ export default function About() {
           }]}>
             <View style={styles.appLogo}>
               <Image 
-                source={require('../assets/Optimized_LinksVaultLogo8.png')} 
+                source={require('../assets/LinksVaultLogo8.png')} 
                 style={styles.appLogoImage}
                 resizeMode="contain"
               />
