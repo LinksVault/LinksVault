@@ -8,7 +8,8 @@ import {
   StatusBar, 
   Platform,
   Linking,
-  Alert 
+  Alert,
+  Image
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { showAppDialog } from '../context/DialogContext';
@@ -104,7 +105,11 @@ export default function About() {
             borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
           }]}>
             <View style={styles.appLogo}>
-              <MaterialIcons name="dashboard" size={48} color="#4A90E2" />
+              <Image 
+                source={require('../assets/Optimized_LinksVaultLogo8.png')} 
+                style={styles.appLogoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={[styles.appName, { color: isDarkMode ? '#ffffff' : '#1a1a1a' }]}>
               LinksVault
@@ -421,6 +426,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  appLogoImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
   },
   appName: {
     fontSize: 32,
